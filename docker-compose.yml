@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: crm-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # 持久化数据库文件
+      - crm-data:/app/db
+    environment:
+      - NODE_ENV=production
+    networks:
+      - crm-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: crm-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+
+# 数据卷 - 持久化数据库
+volumes:
+  crm-data:
+    driver: local
+
+# 网络
+networks:
+  crm-network:
+    driver: bridge
