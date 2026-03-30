@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Button, Input, Select, Space, Modal, Form, InputNumber,
   DatePicker, Popconfirm, message, Typography, Tag, Divider, Card,
-  Collapse, Drawer, Descriptions
+  Collapse, Drawer, Descriptions, Tooltip
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
@@ -186,12 +186,12 @@ export default function Orders() {
   };
 
   const columns = [
-    { title: '订单日期', dataIndex: 'order_date', key: 'order_date', width: 110, sorter: (a, b) => (a.order_date || '').localeCompare(b.order_date || '') },
-    { title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90,
+    { title: '订单日期', dataIndex: 'order_date', key: 'order_date', width: 110, fixed: 'left', sorter: (a, b) => (a.order_date || '').localeCompare(b.order_date || '') },
+    { title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
       render: v => v ? <Tag color={v === '新客户' ? 'green' : 'blue'}>{v}</Tag> : '-'
     },
-    { title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 150,
-      render: (v, r) => <Button type="link" style={{ padding: 0 }} onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</Button>
+    { title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
+      render: (v, r) => <Tooltip placement="topLeft" title={v}><Button type="link" style={{ padding: 0 }} onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</Button></Tooltip>
     },
     { title: '产品', key: 'products', width: 160,
       render: (_, r) => r.items?.map((i, idx) => <div key={idx}>{i.product_name || '-'}{i.product_model ? `(${i.product_model})` : ''}</div>)

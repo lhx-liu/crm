@@ -1,1 +1,10 @@
 /server/node_modules
+/client/node_modules
+
+# 数据库备份文件
+/server/db/backups/
+
+# 数据库文件（包含敏感商业数据，不应提交到Git）
+/server/db/crm.db
+/node_modules
+/server/db/crm.db
