@@ -118,10 +118,9 @@ export default function Statistics() {
   const monthOptions = Array.from({ length: 24 }, (_, i) => dayjs().subtract(i, 'month').format('YYYY-MM'));
 
   const productColumns = [
-    { title: '产品名称', dataIndex: 'name', key: 'name',
+    { title: '产品大类', dataIndex: 'category_name', key: 'category_name',
       render: (v, r) => <Button type="link" style={{ padding: 0 }} onClick={() => handleProductClick(r)}>{v}</Button>
     },
-    { title: '产品型号', dataIndex: 'model', key: 'model' },
     { title: '销售数量', dataIndex: 'total_quantity', key: 'total_quantity', sorter: (a, b) => a.total_quantity - b.total_quantity },
     { title: '销售总金额', dataIndex: 'total_amount', key: 'total_amount', sorter: (a, b) => a.total_amount - b.total_amount,
       render: v => `$${Number(v || 0).toFixed(2)}`
@@ -208,20 +207,21 @@ export default function Statistics() {
 
       {/* 产品关联订单 Modal */}
       <Modal
-        title={`${selectedProduct?.name}(${selectedProduct?.model}) — 关联订单`}
+        title={`${selectedProduct?.category_name} — 关联订单`}
         open={productOrderModal}
         onCancel={() => setProductOrderModal(false)}
         footer={null}
         width={800}
       >
         <Table
-          rowKey="id"
+          rowKey={(r, i) => `${r.id}-${i}`}
           size="small"
           dataSource={productOrders}
           columns={[
             { title: '订单日期', dataIndex: 'order_date', width: 110 },
             { title: '公司名称', dataIndex: 'company_name' },
             { title: '国家', dataIndex: 'country' },
+            { title: '型号', dataIndex: 'product_model' },
             { title: '数量', dataIndex: 'quantity' },
             { title: '单价', dataIndex: 'unit_price', render: v => `$${Number(v || 0).toFixed(2)}` },
             { title: '到款金额', dataIndex: 'payment_amount', render: v => v ? `$${Number(v).toFixed(2)}` : '-' },

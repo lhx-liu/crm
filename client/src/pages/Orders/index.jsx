@@ -6,10 +6,11 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
-  MinusCircleOutlined, FilterOutlined
+  MinusCircleOutlined, FilterOutlined, DownloadOutlined
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 import api from '../../api';
 
 const { Title, Text } = Typography;
@@ -21,7 +22,9 @@ export default function Orders() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [availableModels, setAvailableModels] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
@@ -48,9 +51,9 @@ export default function Orders() {
     const res = await api.get('/customers');
     setCustomers(res.data || []);
   };
-  const fetchProducts = async () => {
-    const res = await api.get('/products');
-    setProducts(res.data || []);
+  const fetchCategories = async () => {
+    const res = await api.get('/products/categories-with-models');
+    setCategories(res.data || []);
   };
 
   const fetchData = useCallback(async () => {
@@ -81,7 +84,7 @@ export default function Orders() {
   useEffect(() => {
     fetchData();
     fetchCustomers();
-    fetchProducts();
+    fetchCategories();
   }, [fetchData]);
 
   const openAdd = () => {
@@ -97,7 +100,7 @@ export default function Orders() {
       ...record,
       order_date: record.order_date ? dayjs(record.order_date) : null,
       payment_date: record.payment_date ? dayjs(record.payment_date) : null,
-      items: record.items?.length ? record.items.map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_price: i.unit_price })) : [{}],
+      items: record.items?.length ? record.items.map(i => ({ model_id: i.model_id, category_id: i.category_id, quantity: i.quantity, unit_price: i.unit_price })) : [{}],
     });
     setModalOpen(true);
   };
@@ -157,23 +160,36 @@ export default function Orders() {
     fetchCustomers();
   };
 
-  // 快捷新增产品
+  // 快捷新增型号
   const handleAddProduct = async () => {
     const values = await newProductForm.validateFields();
-    await api.post('/products', values);
-    message.success('产品新增成功');
+    await api.post('/products/models', values);
+    message.success('型号新增成功');
     setNewProductModal(false);
     newProductForm.resetFields();
-    fetchProducts();
+    fetchCategories();
   };
 
-  const handleProductSelect = (productId, name) => {
-    const product = products.find(p => p.id === productId);
-    if (product) {
+  // 处理大类选择变化
+  const handleCategoryChange = (categoryId, itemName) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
       const items = form.getFieldValue('items') || [];
-      const idx = items.findIndex((_, i) => i === name[1]);
-      if (idx !== -1) {
-        items[idx] = { ...items[idx], unit_price: product.price };
+      const idx = itemName[1];
+      items[idx] = { ...items[idx], category_id: categoryId, model_id: undefined, unit_price: undefined };
+      form.setFieldValue('items', items);
+    }
+  };
+
+  // 处理型号选择变化
+  const handleModelSelect = (modelId, itemName) => {
+    const category = categories.find(c => c.id === selectedCategoryId);
+    if (category) {
+      const model = category.models?.find(m => m.id === modelId);
+      if (model) {
+        const items = form.getFieldValue('items') || [];
+        const idx = itemName[1];
+        items[idx] = { ...items[idx], model_id: modelId, unit_price: model.price };
         form.setFieldValue('items', items);
       }
     }
@@ -185,6 +201,123 @@ export default function Orders() {
     setFilterCompany(companyName);
   };
 
+  // 导出Excel
+  const handleExportExcel = () => {
+    if (!data || data.length === 0) {
+      message.warning('没有数据可导出');
+      return;
+    }
+
+    try {
+      const exportData = [];
+
+      // 遍历每个订单
+      data.forEach(order => {
+        // 联系人信息（用逗号分隔）
+        const contactNames = order.contacts?.map(c => c.name).filter(Boolean).join(', ') || '-';
+        const contactEmails = order.contacts?.map(c => c.email).filter(Boolean).join(', ') || '-';
+        const contactPhones = order.contacts?.map(c => c.phone).filter(Boolean).join(', ') || '-';
+
+        // 基础行数据（订单和客户信息）
+        const baseRow = {
+          '订单ID': order.id,
+          '订单日期': order.order_date || '-',
+          '新老客户': order.customer_type || '-',
+          '请购单号': order.purchase_order_no || '-',
+          '线索编号': order.lead_no || '-',
+          '订单总金额': order.total_amount ? `$${Number(order.total_amount).toFixed(2)}` : '-',
+          '到款金额': order.payment_amount ? `$${Number(order.payment_amount).toFixed(2)}` : '-',
+          '到款日期': order.payment_date || '-',
+          '发票金额': order.invoice_amount ? `$${Number(order.invoice_amount).toFixed(2)}` : '-',
+          'EXW货值': order.exw_value ? `$${Number(order.exw_value).toFixed(2)}` : '-',
+          '公司名称': order.company_name || '-',
+          '客户等级': order.level || '-',
+          '所属国家': order.country || '-',
+          '所属大洲': order.continent || '-',
+          '客户来源': order.source || '-',
+          '客户性质': order.nature || '-',
+          '客户商机': order.opportunity || '-',
+          '客户背调': order.background || '-',
+          '潜在订单询价': order.potential_inquiry || '-',
+          '联系人姓名': contactNames,
+          '联系人邮箱': contactEmails,
+          '联系人电话': contactPhones,
+        };
+
+        // 处理产品明细
+        if (order.items && order.items.length > 0) {
+          // 有产品：每个产品一行
+          order.items.forEach(item => {
+            exportData.push({
+              ...baseRow,
+              '产品大类': item.category_name || '-',
+              '产品型号': item.product_model || '-',
+              '数量': item.quantity || '-',
+              '单价': item.unit_price ? `$${Number(item.unit_price).toFixed(2)}` : '-',
+            });
+          });
+        } else {
+          // 没有产品：只导出订单和客户信息
+          exportData.push({
+            ...baseRow,
+            '产品大类': '-',
+            '产品型号': '-',
+            '数量': '-',
+            '单价': '-',
+          });
+        }
+      });
+
+      // 创建工作簿
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // 设置列宽
+      const colWidths = [
+        { wch: 10 },  // 订单ID
+        { wch: 12 },  // 订单日期
+        { wch: 10 },  // 新老客户
+        { wch: 15 },  // 请购单号
+        { wch: 15 },  // 线索编号
+        { wch: 12 },  // 订单总金额
+        { wch: 12 },  // 到款金额
+        { wch: 12 },  // 到款日期
+        { wch: 12 },  // 发票金额
+        { wch: 12 },  // EXW货值
+        { wch: 30 },  // 公司名称
+        { wch: 10 },  // 客户等级
+        { wch: 12 },  // 所属国家
+        { wch: 12 },  // 所属大洲
+        { wch: 15 },  // 客户来源
+        { wch: 12 },  // 客户性质
+        { wch: 30 },  // 客户商机
+        { wch: 30 },  // 客户背调
+        { wch: 30 },  // 潜在订单询价
+        { wch: 20 },  // 产品大类
+        { wch: 15 },  // 产品型号
+        { wch: 10 },  // 数量
+        { wch: 12 },  // 单价
+        { wch: 20 },  // 联系人姓名
+        { wch: 25 },  // 联系人邮箱
+        { wch: 20 },  // 联系人电话
+      ];
+      ws['!cols'] = colWidths;
+
+      // 添加工作表到工作簿
+      XLSX.utils.book_append_sheet(wb, ws, '订单数据');
+
+      // 生成文件名（包含导出时间）
+      const fileName = `订单数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
+
+      // 下载文件
+      XLSX.writeFile(wb, fileName);
+      message.success('导出成功');
+    } catch (err) {
+      console.error('导出失败:', err);
+      message.error('导出失败');
+    }
+  };
+
   const columns = [
     { title: '订单日期', dataIndex: 'order_date', key: 'order_date', width: 110, fixed: 'left', sorter: (a, b) => (a.order_date || '').localeCompare(b.order_date || '') },
     { title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
@@ -194,7 +327,7 @@ export default function Orders() {
       render: (v, r) => <Tooltip placement="topLeft" title={v}><Button type="link" style={{ padding: 0 }} onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</Button></Tooltip>
     },
     { title: '产品', key: 'products', width: 160,
-      render: (_, r) => r.items?.map((i, idx) => <div key={idx}>{i.product_name || '-'}{i.product_model ? `(${i.product_model})` : ''}</div>)
+      render: (_, r) => r.items?.map((i, idx) => <div key={idx}>{i.category_name || '-'}{i.product_model ? `(${i.product_model})` : ''}</div>)
     },
     { title: '国家', dataIndex: 'country', key: 'country', width: 100 },
     { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
@@ -224,6 +357,7 @@ export default function Orders() {
         </Title>
         <Space>
           {filterCustomerId && <Button onClick={() => { setFilterCustomerId(''); setFilterCompany(''); }}>查看全部订单</Button>}
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出Excel</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增订单</Button>
         </Space>
       </div>
@@ -277,26 +411,36 @@ export default function Orders() {
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} wrap align="start">
-                      <Form.Item {...restField} name={[name, 'product_id']} label="产品" style={{ width: 240, marginBottom: 0 }} rules={[{ required: true, message: '请选择产品' }]}>
+                      <Form.Item {...restField} name={[name, 'category_id']} label="产品大类" style={{ width: 200, marginBottom: 0 }} rules={[{ required: true, message: '请选择大类' }]}>
                         <Select
-                          showSearch placeholder="选择产品"
-                          filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
-                          onChange={(v) => handleProductSelect(v, [name])}
+                          placeholder="选择大类"
+                          onChange={(v) => {
+                            setSelectedCategoryId(v);
+                            handleCategoryChange(v, [name]);
+                          }}
+                        >
+                          {categories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+                        </Select>
+                      </Form.Item>
+                      <Form.Item {...restField} name={[name, 'model_id']} label="产品型号" style={{ width: 220, marginBottom: 0 }} rules={[{ required: true, message: '请选择型号' }]}>
+                        <Select
+                          placeholder="选择型号"
+                          onChange={(v) => handleModelSelect(v, [name])}
                           dropdownRender={menu => (
                             <>
                               {menu}
                               <Divider style={{ margin: '4px 0' }} />
-                              <Button type="link" icon={<PlusOutlined />} onClick={() => setNewProductModal(true)} block>快速新增产品</Button>
+                              <Button type="link" icon={<PlusOutlined />} onClick={() => { newProductForm.resetFields(); newProductForm.setFieldsValue({ category_id: selectedCategoryId }); setNewProductModal(true); }} block>快速新增型号</Button>
                             </>
                           )}
                         >
-                          {products.map(p => <Option key={p.id} value={p.id}>{p.name}({p.model})</Option>)}
+                          {(categories.find(c => c.id === form.getFieldValue(['items', name, 'category_id']))?.models || []).map(m => <Option key={m.id} value={m.id}>{m.model} (${Number(m.price).toFixed(2)})</Option>)}
                         </Select>
                       </Form.Item>
-                      <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 120, marginBottom: 0 }}>
+                      <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 100, marginBottom: 0 }}>
                         <InputNumber min={0} style={{ width: '100%' }} />
                       </Form.Item>
-                      <Form.Item {...restField} name={[name, 'unit_price']} label="单价($)" style={{ width: 140, marginBottom: 0 }}>
+                      <Form.Item {...restField} name={[name, 'unit_price']} label="单价($)" style={{ width: 130, marginBottom: 0 }}>
                         <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" />
                       </Form.Item>
                     </Space>
@@ -318,7 +462,7 @@ export default function Orders() {
                   <>
                     {menu}
                     <Divider style={{ margin: '4px 0' }} />
-                    <Button type="link" icon={<PlusOutlined />} onClick={() => setNewCustomerModal(true)} block>快速新增客户</Button>
+                    <Button type="link" icon={<PlusOutlined />} onClick={() => { newCustomerForm.resetFields(); newCustomerForm.setFieldsValue({ contacts: [{}] }); setNewCustomerModal(true); }} block>快速新增客户</Button>
                   </>
                 )}
               >
@@ -357,7 +501,7 @@ export default function Orders() {
       </Modal>
 
       {/* 订单详情 Drawer */}
-      <Drawer title="订单详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={650}>
+      <Drawer title="订单详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={750}>
         {detailRecord && (
           <>
             {/* 客户信息 */}
@@ -367,11 +511,32 @@ export default function Orders() {
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户来源">{detailRecord.source || '-'}</Descriptions.Item>
-              <Descriptions.Item label="客户商机">{detailRecord.opportunity || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户性质">{detailRecord.nature || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户商机" span={2}>{detailRecord.opportunity || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户背调" span={2}>{detailRecord.background || '-'}</Descriptions.Item>
+              <Descriptions.Item label="潜在订单询价" span={2}>{detailRecord.potential_inquiry || '-'}</Descriptions.Item>
             </Descriptions>
 
+            {/* 联系人信息 */}
+            {detailRecord.contacts && detailRecord.contacts.length > 0 && (
+              <>
+                <Divider>联系人信息</Divider>
+                <Table
+                  rowKey={(r, i) => i}
+                  size="small"
+                  pagination={false}
+                  dataSource={detailRecord.contacts}
+                  columns={[
+                    { title: '姓名', dataIndex: 'name', render: v => v || '-' },
+                    { title: '邮箱', dataIndex: 'email', render: v => v || '-' },
+                    { title: '联系方式', dataIndex: 'phone', render: v => v || '-' },
+                  ]}
+                />
+              </>
+            )}
+
             {/* 订单信息 */}
-            <Descriptions title="订单信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
+            <Descriptions title="订单信息" bordered column={2} size="small" style={{ marginBottom: 16, marginTop: 16 }}>
               <Descriptions.Item label="订单ID">{detailRecord.id}</Descriptions.Item>
               <Descriptions.Item label="新老客户">{detailRecord.customer_type || '-'}</Descriptions.Item>
               <Descriptions.Item label="订单日期">{detailRecord.order_date || '-'}</Descriptions.Item>
@@ -391,7 +556,7 @@ export default function Orders() {
               pagination={false}
               dataSource={detailRecord.items || []}
               columns={[
-                { title: '产品名称', dataIndex: 'product_name' },
+                { title: '产品大类', dataIndex: 'category_name' },
                 { title: '型号', dataIndex: 'product_model' },
                 { title: '数量', dataIndex: 'quantity' },
                 { title: '单价', dataIndex: 'unit_price', render: v => `$${Number(v || 0).toFixed(2)}` },
@@ -402,21 +567,63 @@ export default function Orders() {
       </Drawer>
 
       {/* 快捷新增客户 */}
-      <Modal title="快速新增客户" open={newCustomerModal} onOk={handleAddCustomer} onCancel={() => setNewCustomerModal(false)} okText="新增" cancelText="取消" destroyOnClose>
+      <Modal title="快速新增客户" open={newCustomerModal} onOk={handleAddCustomer} onCancel={() => setNewCustomerModal(false)} okText="新增" cancelText="取消" width={700} destroyOnClose>
         <Form form={newCustomerForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="company_name" label="公司名称" rules={[{ required: true, message: '请输入公司名称' }]}><Input /></Form.Item>
-          <Form.Item name="level" label="客户等级">
-            <Select allowClear><Option value="A">A</Option><Option value="B">B</Option><Option value="C">C</Option></Select>
+          <Form.Item name="company_name" label="客户公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
+            <Input placeholder="请输入公司名称" />
           </Form.Item>
+          <Form.Item name="level" label="客户等级">
+            <Select placeholder="请选择客户等级" allowClear>
+              <Option value="A">A</Option>
+              <Option value="B">B</Option>
+              <Option value="C">C</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="opportunity" label="客户商机"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="background" label="客户背调"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="country" label="所属国家"><Input /></Form.Item>
+          <Form.Item name="continent" label="所属大洲"><Input /></Form.Item>
+          <Form.Item name="nature" label="客户性质"><Input /></Form.Item>
+          <Form.Item name="source" label="客户来源"><Input /></Form.Item>
+          <Form.Item name="potential_inquiry" label="潜在订单询价"><Input.TextArea rows={2} /></Form.Item>
+
+          <Divider>联系人信息</Divider>
+          <Form.List name="contacts">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                    extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
+                  >
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                      <Form.Item {...restField} name={[name, 'name']} label="姓名" style={{ marginBottom: 0 }}>
+                        <Input placeholder="联系人姓名" />
+                      </Form.Item>
+                      <Form.Item {...restField} name={[name, 'email']} label="邮箱" style={{ marginBottom: 0 }}>
+                        <Input placeholder="邮箱" />
+                      </Form.Item>
+                      <Form.Item {...restField} name={[name, 'phone']} label="联系方式" style={{ marginBottom: 0 }}>
+                        <Input placeholder="联系方式" />
+                      </Form.Item>
+                    </Space>
+                  </Card>
+                ))}
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} block>添加联系人</Button>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
 
-      {/* 快捷新增产品 */}
-      <Modal title="快速新增产品" open={newProductModal} onOk={handleAddProduct} onCancel={() => setNewProductModal(false)} okText="新增" cancelText="取消" destroyOnClose>
+      {/* 快捷新增型号 */}
+      <Modal title="快速新增型号" open={newProductModal} onOk={handleAddProduct} onCancel={() => setNewProductModal(false)} okText="新增" cancelText="取消" destroyOnClose>
         <Form form={newProductForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="产品名称" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="model" label="产品型号" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="category_id" label="所属大类" rules={[{ required: true }]}>
+            <Select placeholder="选择大类">
+              {categories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+            </Select>
+          </Form.Item>
+          <Form.Item name="model" label="型号名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="price" label="单价($)"><InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" /></Form.Item>
         </Form>
       </Modal>

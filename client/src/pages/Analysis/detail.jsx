@@ -52,8 +52,7 @@ export default function AnalysisDetail() {
   };
 
   const productColumns = [
-    { title: '产品名称', dataIndex: 'name', key: 'name' },
-    { title: '产品型号', dataIndex: 'model', key: 'model' },
+    { title: '产品大类', dataIndex: 'category_name', key: 'category_name' },
     { title: '购买次数', dataIndex: 'purchase_count', key: 'purchase_count', sorter: (a, b) => a.purchase_count - b.purchase_count },
     { title: '购买总量', dataIndex: 'total_quantity', key: 'total_quantity', sorter: (a, b) => a.total_quantity - b.total_quantity },
     { title: '购买总金额', dataIndex: 'total_amount', key: 'total_amount', sorter: (a, b) => a.total_amount - b.total_amount,
@@ -147,7 +146,7 @@ export default function AnalysisDetail() {
                         {order.items?.length > 0 ? (
                           order.items.map((item, i) => (
                             <Tag key={i} style={{ margin: '4px 4px 0 0' }}>
-                              {item.product_name}({item.product_model}) × {item.quantity}
+                              {item.category_name}({item.product_model}) × {item.quantity}
                             </Tag>
                           ))
                         ) : <Text type="secondary">无产品明细</Text>}

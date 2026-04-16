@@ -70,21 +70,22 @@ router.get('/:id/frequency', async (req, res) => {
   }
 });
 
-// 客户偏向产品
+// 客户偏向产品（按大类聚合）
 router.get('/:id/products', async (req, res) => {
   try {
     const db = await getDb();
     const { id } = req.params;
     const stmt = db.prepare(`
-      SELECT p.id, p.name, p.model,
+      SELECT pc.id, pc.name as category_name,
         COUNT(DISTINCT oi.order_id) as purchase_count,
         SUM(oi.quantity) as total_quantity,
         SUM(oi.quantity * oi.unit_price) as total_amount
       FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.id
+      LEFT JOIN product_models pm ON oi.model_id = pm.id
+      LEFT JOIN product_categories pc ON pm.category_id = pc.id
       LEFT JOIN orders o ON oi.order_id = o.id
       WHERE o.customer_id = ?
-      GROUP BY p.id
+      GROUP BY pc.id
       ORDER BY total_amount DESC
     `);
     stmt.bind([id]);
@@ -111,8 +112,10 @@ router.get('/:id/timeline', async (req, res) => {
 
     for (const order of orders) {
       const istmt = db.prepare(`
-        SELECT oi.quantity, oi.unit_price, p.name as product_name, p.model as product_model
-        FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id
+        SELECT oi.quantity, oi.unit_price, pm.model as product_model, pc.name as category_name
+        FROM order_items oi 
+        LEFT JOIN product_models pm ON oi.model_id = pm.id
+        LEFT JOIN product_categories pc ON pm.category_id = pc.id
         WHERE oi.order_id = ?
       `);
       istmt.bind([order.id]);

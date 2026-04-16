@@ -30,15 +30,28 @@ function saveDb() {
 }
 
 function initTables() {
-  // 产品表
+  // 产品大类表
   db.run(`
-    CREATE TABLE IF NOT EXISTS products (
+    CREATE TABLE IF NOT EXISTS product_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      model TEXT NOT NULL,
-      price REAL NOT NULL DEFAULT 0,
+      description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 产品型号表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS product_models (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER NOT NULL,
+      model TEXT NOT NULL,
+      price REAL NOT NULL DEFAULT 0,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES product_categories(id)
     )
   `);
 
@@ -98,12 +111,12 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_id INTEGER NOT NULL,
-      product_id INTEGER NOT NULL,
+      model_id INTEGER NOT NULL,
       quantity REAL DEFAULT 1,
       unit_price REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES orders(id),
-      FOREIGN KEY (product_id) REFERENCES products(id)
+      FOREIGN KEY (model_id) REFERENCES product_models(id)
     )
   `);
 

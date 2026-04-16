@@ -23,9 +23,9 @@ const { Sider, Content } = Layout;
 const { Title } = Typography;
 
 const menuItems = [
-  { key: '/products', icon: <ShopOutlined />, label: '产品管理' },
-  { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
   { key: '/orders', icon: <FileTextOutlined />, label: '订单管理' },
+  { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
+  { key: '/products', icon: <ShopOutlined />, label: '产品管理' },
   { key: '/statistics', icon: <BarChartOutlined />, label: '订单统计' },
   { key: '/analysis', icon: <LineChartOutlined />, label: '客户分析' },
 ];
@@ -35,7 +35,7 @@ function AppLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  const selectedKey = '/' + location.pathname.split('/')[1];
+  const selectedKey = location.pathname === '/' ? '/orders' : '/' + location.pathname.split('/')[1];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

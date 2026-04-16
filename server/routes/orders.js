@@ -15,9 +15,10 @@ function getOrderWithItems(db, orderId) {
   stmt.free();
 
   const istmt = db.prepare(`
-    SELECT oi.*, p.name as product_name, p.model as product_model
+    SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
     FROM order_items oi
-    LEFT JOIN products p ON oi.product_id = p.id
+    LEFT JOIN product_models pm ON oi.model_id = pm.id
+    LEFT JOIN product_categories pc ON pm.category_id = pc.id
     WHERE oi.order_id = ?
   `);
   istmt.bind([orderId]);
@@ -63,9 +64,10 @@ router.get('/', async (req, res) => {
     // 查询每个订单的产品明细
     for (const order of orders) {
       const istmt = db.prepare(`
-        SELECT oi.*, p.name as product_name, p.model as product_model
+        SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
         FROM order_items oi
-        LEFT JOIN products p ON oi.product_id = p.id
+        LEFT JOIN product_models pm ON oi.model_id = pm.id
+        LEFT JOIN product_categories pc ON pm.category_id = pc.id
         WHERE oi.order_id = ?
       `);
       istmt.bind([order.id]);
@@ -113,7 +115,7 @@ router.post('/', async (req, res) => {
 
     if (items && items.length > 0) {
       for (const item of items) {
-        db.run('INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?,?,?,?)', [order.id, item.product_id, item.quantity || 1, item.unit_price || 0]);
+        db.run('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [order.id, item.model_id, item.quantity || 1, item.unit_price || 0]);
       }
       saveDb();
     }
@@ -139,7 +141,7 @@ router.put('/:id', async (req, res) => {
     db.run('DELETE FROM order_items WHERE order_id = ?', [id]);
     if (items && items.length > 0) {
       for (const item of items) {
-        db.run('INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?,?,?,?)', [id, item.product_id, item.quantity || 1, item.unit_price || 0]);
+        db.run('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [id, item.model_id, item.quantity || 1, item.unit_price || 0]);
       }
     }
     saveDb();
