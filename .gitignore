@@ -12,3 +12,5 @@
 
 # 数据库文件（包含敏感商业数据，不应提交到Git）
 /server/db/crm.db
+/client/crm_crmly_cc_cd.key
+/client/crm_crmly_cc_cd_integrated.pem

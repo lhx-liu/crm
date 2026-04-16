@@ -26,8 +26,12 @@ COPY --from=build /app/build /usr/share/nginx/html
 # 复制 nginx 配置
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# 复制 SSL 证书
+COPY crm_crmly_cc_cd_integrated.pem /etc/nginx/ssl/
+COPY crm_crmly_cc_cd.key /etc/nginx/ssl/
+
 # 暴露端口
-EXPOSE 80
+EXPOSE 80 443
 
 # 启动 nginx
 CMD ["nginx", "-g", "daemon off;"]
