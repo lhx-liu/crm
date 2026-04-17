@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db/database');
+const { getPool } = require('../db/database');
 
 // 大洲订单分布
 router.get('/continent-distribution', async (req, res) => {
   try {
-    const db = await getDb();
-    const { start_date, end_date, type } = req.query; // type: count | amount
+    const db = getPool();
+    const { start_date, end_date, type } = req.query;
     let sql, params = [];
 
     if (type === 'amount') {
@@ -18,11 +18,7 @@ router.get('/continent-distribution', async (req, res) => {
     if (end_date) { sql += ' AND o.order_date <= ?'; params.push(end_date); }
     sql += ' GROUP BY c.continent';
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -32,12 +28,12 @@ router.get('/continent-distribution', async (req, res) => {
 // 到款金额趋势
 router.get('/payment-trend', async (req, res) => {
   try {
-    const db = await getDb();
-    const { start_date, end_date, granularity } = req.query; // granularity: month | quarter | year
+    const db = getPool();
+    const { start_date, end_date, granularity } = req.query;
     let groupExpr;
-    if (granularity === 'year') groupExpr = "strftime('%Y', o.order_date)";
-    else if (granularity === 'quarter') groupExpr = "strftime('%Y', o.order_date) || '-Q' || CAST((CAST(strftime('%m', o.order_date) AS INTEGER) + 2) / 3 AS TEXT)";
-    else groupExpr = "strftime('%Y-%m', o.order_date)";
+    if (granularity === 'year') groupExpr = "DATE_FORMAT(o.order_date, '%Y')";
+    else if (granularity === 'quarter') groupExpr = "CONCAT(YEAR(o.order_date), '-Q', QUARTER(o.order_date))";
+    else groupExpr = "DATE_FORMAT(o.order_date, '%Y-%m')";
 
     let sql = `SELECT ${groupExpr} as period, SUM(o.payment_amount) as amount FROM orders o WHERE 1=1`;
     const params = [];
@@ -45,11 +41,7 @@ router.get('/payment-trend', async (req, res) => {
     if (end_date) { sql += ' AND o.order_date <= ?'; params.push(end_date); }
     sql += ` GROUP BY ${groupExpr} ORDER BY period ASC`;
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -59,25 +51,21 @@ router.get('/payment-trend', async (req, res) => {
 // 到款金额对比（多月/多年）
 router.get('/payment-compare', async (req, res) => {
   try {
-    const db = await getDb();
-    const { periods, type } = req.query; // periods: ['2024','2025'] or ['2024-01','2024-02'], type: year|month
+    const db = getPool();
+    const { periods, type } = req.query;
     const periodList = Array.isArray(periods) ? periods : (periods ? periods.split(',') : []);
     const result = {};
 
     for (const p of periodList) {
       let sql, params = [];
       if (type === 'year') {
-        sql = `SELECT strftime('%m', order_date) as sub_period, SUM(payment_amount) as amount FROM orders WHERE strftime('%Y', order_date) = ? GROUP BY sub_period ORDER BY sub_period ASC`;
+        sql = `SELECT DATE_FORMAT(order_date, '%m') as sub_period, SUM(payment_amount) as amount FROM orders WHERE DATE_FORMAT(order_date, '%Y') = ? GROUP BY sub_period ORDER BY sub_period ASC`;
         params = [p];
       } else {
-        sql = `SELECT strftime('%d', order_date) as sub_period, SUM(payment_amount) as amount FROM orders WHERE strftime('%Y-%m', order_date) = ? GROUP BY sub_period ORDER BY sub_period ASC`;
+        sql = `SELECT DATE_FORMAT(order_date, '%d') as sub_period, SUM(payment_amount) as amount FROM orders WHERE DATE_FORMAT(order_date, '%Y-%m') = ? GROUP BY sub_period ORDER BY sub_period ASC`;
         params = [p];
       }
-      const stmt = db.prepare(sql);
-      stmt.bind(params);
-      const rows = [];
-      while (stmt.step()) rows.push(stmt.getAsObject());
-      stmt.free();
+      const [rows] = await db.execute(sql, params);
       result[p] = rows;
     }
 
@@ -90,8 +78,8 @@ router.get('/payment-compare', async (req, res) => {
 // 产品销售排行（按大类聚合）
 router.get('/product-ranking', async (req, res) => {
   try {
-    const db = await getDb();
-    const { start_date, end_date, sort_by } = req.query; // sort_by: amount | quantity
+    const db = getPool();
+    const { start_date, end_date, sort_by } = req.query;
 
     let sql = `
       SELECT pc.id, pc.name as category_name,
@@ -109,21 +97,17 @@ router.get('/product-ranking', async (req, res) => {
     sql += ' GROUP BY pc.id';
     sql += sort_by === 'quantity' ? ' ORDER BY total_quantity DESC' : ' ORDER BY total_amount DESC';
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// 产品关联订单（按大类查询，点击大类查看买过的客户和订单）
+// 产品关联订单
 router.get('/product-orders/:categoryId', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { categoryId } = req.params;
     const { start_date, end_date } = req.query;
 
@@ -140,11 +124,7 @@ router.get('/product-orders/:categoryId', async (req, res) => {
     if (end_date) { sql += ' AND o.order_date <= ?'; params.push(end_date); }
     sql += ' ORDER BY o.order_date DESC';
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

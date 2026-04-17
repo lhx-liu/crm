@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db/database');
+const { getPool } = require('../db/database');
 
 // 客户分析列表（按到款金额排序）
 router.get('/list', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { search } = req.query;
     let sql = `
       SELECT c.id, c.company_name, c.level, c.country, c.continent,
@@ -19,11 +19,7 @@ router.get('/list', async (req, res) => {
     if (search) { sql += ' AND c.company_name LIKE ?'; params.push(`%${search}%`); }
     sql += ' GROUP BY c.id ORDER BY total_payment DESC';
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -33,26 +29,18 @@ router.get('/list', async (req, res) => {
 // 客户下单频率
 router.get('/:id/frequency', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { id } = req.params;
 
-    // 每月下单次数
-    const stmt = db.prepare(`
-      SELECT strftime('%Y-%m', order_date) as month, COUNT(*) as count
+    const [monthly] = await db.execute(`
+      SELECT DATE_FORMAT(order_date, '%Y-%m') as month, COUNT(*) as count
       FROM orders WHERE customer_id = ? AND order_date IS NOT NULL
       GROUP BY month ORDER BY month ASC
-    `);
-    stmt.bind([id]);
-    const monthly = [];
-    while (stmt.step()) monthly.push(stmt.getAsObject());
-    stmt.free();
+    `, [id]);
 
     // 计算平均间隔天数
-    const dstmt = db.prepare(`SELECT order_date FROM orders WHERE customer_id = ? AND order_date IS NOT NULL ORDER BY order_date ASC`);
-    dstmt.bind([id]);
-    const dates = [];
-    while (dstmt.step()) dates.push(dstmt.getAsObject().order_date);
-    dstmt.free();
+    const [dateRows] = await db.execute(`SELECT order_date FROM orders WHERE customer_id = ? AND order_date IS NOT NULL ORDER BY order_date ASC`, [id]);
+    const dates = dateRows.map(r => r.order_date);
 
     let avgDays = null;
     if (dates.length > 1) {
@@ -73,9 +61,9 @@ router.get('/:id/frequency', async (req, res) => {
 // 客户偏向产品（按大类聚合）
 router.get('/:id/products', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { id } = req.params;
-    const stmt = db.prepare(`
+    const [rows] = await db.execute(`
       SELECT pc.id, pc.name as category_name,
         COUNT(DISTINCT oi.order_id) as purchase_count,
         SUM(oi.quantity) as total_quantity,
@@ -87,11 +75,7 @@ router.get('/:id/products', async (req, res) => {
       WHERE o.customer_id = ?
       GROUP BY pc.id
       ORDER BY total_amount DESC
-    `);
-    stmt.bind([id]);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
+    `, [id]);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -101,27 +85,18 @@ router.get('/:id/products', async (req, res) => {
 // 客户下单时间轴
 router.get('/:id/timeline', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { id } = req.params;
-
-    const stmt = db.prepare(`SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC`);
-    stmt.bind([id]);
-    const orders = [];
-    while (stmt.step()) orders.push(stmt.getAsObject());
-    stmt.free();
+    const [orders] = await db.execute(`SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC`, [id]);
 
     for (const order of orders) {
-      const istmt = db.prepare(`
+      const [items] = await db.execute(`
         SELECT oi.quantity, oi.unit_price, pm.model as product_model, pc.name as category_name
         FROM order_items oi 
         LEFT JOIN product_models pm ON oi.model_id = pm.id
         LEFT JOIN product_categories pc ON pm.category_id = pc.id
         WHERE oi.order_id = ?
-      `);
-      istmt.bind([order.id]);
-      const items = [];
-      while (istmt.step()) items.push(istmt.getAsObject());
-      istmt.free();
+      `, [order.id]);
       order.items = items;
     }
 

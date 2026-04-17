@@ -35,7 +35,9 @@
 
 - **Node.js** - 运行时环境
 - **Express 5.2.1** - Web 框架
-- **sql.js 1.14.1** - SQLite 数据库引擎
+- **better-sqlite3 11.7.0** - SQLite 数据库引擎（高性能同步 API）
+- **bcryptjs 3.0.3** - 密码加密
+- **jsonwebtoken 9.0.3** - JWT 身份认证
 - **CORS 2.8.6** - 跨域处理
 
 ### 部署技术
@@ -88,13 +90,27 @@ Claw/
 
 ### 环境要求
 
-- Node.js >= 14.0.0
-- npm >= 6.0.0
-- Docker & Docker Compose (生产环境)
+- **Node.js** >= 18.0.0（推荐 v20 LTS）
+- **Python** >= 3.6（better-sqlite3 编译需要）
+- **Visual Studio Build Tools** 2022+（Windows 用户需要，包含 "Desktop development with C++" 工作负载）
+- **Docker & Docker Compose**（生产环境）
 
 ### 开发环境运行
 
-#### 方式一: 使用启动脚本 (Windows)
+#### 方式一: 自动安装脚本（推荐，Windows）
+
+```bash
+# 进入后端目录
+cd server
+
+# 运行自动安装脚本（会自动处理 better-sqlite3 编译）
+install.bat
+
+# 或使用 Node.js 脚本
+node install.js
+```
+
+#### 方式二: 使用启动脚本 (Windows)
 
 ```bash
 # 同时启动前端和后端
@@ -113,6 +129,7 @@ npm run install:all
 
 # 2. 启动后端 (终端1)
 cd server
+npm install  # 会自动运行 postinstall 脚本编译 better-sqlite3
 npm start
 # 后端服务运行在 http://localhost:3001
 
@@ -121,6 +138,8 @@ cd client
 npm start
 # 前端应用运行在 http://localhost:3000
 ```
+
+> **注意**: 如果后端安装过程中遇到 `better-sqlite3` 编译错误，请参考 `server/INSTALL.md` 文档。
 
 ### 生产环境部署
 

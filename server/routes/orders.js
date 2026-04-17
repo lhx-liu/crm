@@ -1,30 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, saveDb } = require('../db/database');
+const { getPool } = require('../db/database');
 
-function getOrderWithItems(db, orderId) {
-  const stmt = db.prepare(`
+async function getOrderWithItems(db, orderId) {
+  const [orderRows] = await db.execute(`
     SELECT o.*, c.company_name, c.country, c.level, c.continent, c.source, c.opportunity
     FROM orders o
     LEFT JOIN customers c ON o.customer_id = c.id
     WHERE o.id = ?
-  `);
-  stmt.bind([orderId]);
-  if (!stmt.step()) { stmt.free(); return null; }
-  const order = stmt.getAsObject();
-  stmt.free();
+  `, [orderId]);
+  if (orderRows.length === 0) return null;
 
-  const istmt = db.prepare(`
+  const order = orderRows[0];
+  const [items] = await db.execute(`
     SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
     FROM order_items oi
     LEFT JOIN product_models pm ON oi.model_id = pm.id
     LEFT JOIN product_categories pc ON pm.category_id = pc.id
     WHERE oi.order_id = ?
-  `);
-  istmt.bind([orderId]);
-  const items = [];
-  while (istmt.step()) items.push(istmt.getAsObject());
-  istmt.free();
+  `, [orderId]);
   order.items = items;
   return order;
 }
@@ -32,7 +26,7 @@ function getOrderWithItems(db, orderId) {
 // 获取订单列表
 router.get('/', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { company_name, order_date_start, order_date_end, country, level, continent, source, customer_type, customer_id } = req.query;
 
     let sql = `
@@ -55,25 +49,17 @@ router.get('/', async (req, res) => {
 
     sql += ' ORDER BY o.order_date DESC, o.id DESC';
 
-    const stmt = db.prepare(sql);
-    stmt.bind(params);
-    const orders = [];
-    while (stmt.step()) orders.push(stmt.getAsObject());
-    stmt.free();
+    const [orders] = await db.execute(sql, params);
 
     // 查询每个订单的产品明细
     for (const order of orders) {
-      const istmt = db.prepare(`
+      const [items] = await db.execute(`
         SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
         FROM order_items oi
         LEFT JOIN product_models pm ON oi.model_id = pm.id
         LEFT JOIN product_categories pc ON pm.category_id = pc.id
         WHERE oi.order_id = ?
-      `);
-      istmt.bind([order.id]);
-      const items = [];
-      while (istmt.step()) items.push(istmt.getAsObject());
-      istmt.free();
+      `, [order.id]);
       order.items = items;
     }
 
@@ -86,8 +72,8 @@ router.get('/', async (req, res) => {
 // 获取单个订单详情
 router.get('/:id', async (req, res) => {
   try {
-    const db = await getDb();
-    const order = getOrderWithItems(db, req.params.id);
+    const db = getPool();
+    const order = await getOrderWithItems(db, req.params.id);
     if (!order) return res.status(404).json({ success: false, message: '订单不存在' });
     res.json({ success: true, data: order });
   } catch (err) {
@@ -98,29 +84,22 @@ router.get('/:id', async (req, res) => {
 // 新增订单
 router.post('/', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { customer_id, customer_type, order_date, payment_date, purchase_order_no, lead_no, payment_amount, invoice_amount, exw_value, total_amount, items } = req.body;
     if (!customer_id) return res.status(400).json({ success: false, message: '请选择关联客户' });
 
-    db.run(
+    const [result] = await db.execute(
       `INSERT INTO orders (customer_id, customer_type, order_date, payment_date, purchase_order_no, lead_no, payment_amount, invoice_amount, exw_value, total_amount) VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [customer_id, customer_type || null, order_date || null, payment_date || null, purchase_order_no || null, lead_no || null, payment_amount || 0, invoice_amount || 0, exw_value || 0, total_amount || 0]
     );
-    saveDb();
-
-    const stmt = db.prepare('SELECT * FROM orders ORDER BY id DESC LIMIT 1');
-    stmt.step();
-    const order = stmt.getAsObject();
-    stmt.free();
 
     if (items && items.length > 0) {
       for (const item of items) {
-        db.run('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [order.id, item.model_id, item.quantity || 1, item.unit_price || 0]);
+        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [result.insertId, item.model_id, item.quantity || 1, item.unit_price || 0]);
       }
-      saveDb();
     }
 
-    res.json({ success: true, data: getOrderWithItems(db, order.id) });
+    res.json({ success: true, data: await getOrderWithItems(db, result.insertId) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -129,23 +108,22 @@ router.post('/', async (req, res) => {
 // 更新订单
 router.put('/:id', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { id } = req.params;
     const { customer_id, customer_type, order_date, payment_date, purchase_order_no, lead_no, payment_amount, invoice_amount, exw_value, total_amount, items } = req.body;
 
-    db.run(
+    await db.execute(
       `UPDATE orders SET customer_id=?, customer_type=?, order_date=?, payment_date=?, purchase_order_no=?, lead_no=?, payment_amount=?, invoice_amount=?, exw_value=?, total_amount=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
       [customer_id, customer_type || null, order_date || null, payment_date || null, purchase_order_no || null, lead_no || null, payment_amount || 0, invoice_amount || 0, exw_value || 0, total_amount || 0, id]
     );
 
-    db.run('DELETE FROM order_items WHERE order_id = ?', [id]);
+    await db.execute('DELETE FROM order_items WHERE order_id = ?', [id]);
     if (items && items.length > 0) {
       for (const item of items) {
-        db.run('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [id, item.model_id, item.quantity || 1, item.unit_price || 0]);
+        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [id, item.model_id, item.quantity || 1, item.unit_price || 0]);
       }
     }
-    saveDb();
-    res.json({ success: true, data: getOrderWithItems(db, id) });
+    res.json({ success: true, data: await getOrderWithItems(db, Number(id)) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -154,11 +132,10 @@ router.put('/:id', async (req, res) => {
 // 删除订单
 router.delete('/:id', async (req, res) => {
   try {
-    const db = await getDb();
+    const db = getPool();
     const { id } = req.params;
-    db.run('DELETE FROM order_items WHERE order_id = ?', [id]);
-    db.run('DELETE FROM orders WHERE id = ?', [id]);
-    saveDb();
+    await db.execute('DELETE FROM order_items WHERE order_id = ?', [id]);
+    await db.execute('DELETE FROM orders WHERE id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

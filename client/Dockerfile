@@ -5,14 +5,23 @@ FROM node:18.18.0-alpine as build
 
 WORKDIR /app
 
+# 使用国内镜像源加速
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 # 复制 package.json
 COPY package*.json ./
+
+# 使用淘宝镜像源加速 npm 安装
+RUN npm config set registry https://registry.npmmirror.com
 
 # 安装依赖
 RUN npm ci
 
 # 复制源代码
 COPY . .
+
+# 增大 Node.js 内存限制，避免构建 OOM
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 # 构建应用
 RUN npm run build

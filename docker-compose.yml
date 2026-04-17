@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: crm-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-crm_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-crm_db}
+      MYSQL_USER: ${MYSQL_USER:-crm_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./server/db/backups:/backups
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    networks:
+      - crm-network
+
   # 后端服务
   backend:
     build:
@@ -10,11 +31,16 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
-    volumes:
-      # 持久化数据库文件
-      - crm-data:/app/db
     environment:
       - NODE_ENV=production
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-crm_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-crm_db}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - mysql
     networks:
       - crm-network
 
@@ -33,9 +59,9 @@ services:
     networks:
       - crm-network
 
-# 数据卷 - 持久化数据库
+# 数据卷 - 持久化 MySQL 数据
 volumes:
-  crm-data:
+  mysql-data:
     driver: local
 
 # 网络
