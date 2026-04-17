@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
-  MinusCircleOutlined, FilterOutlined, DownloadOutlined
+  MinusCircleOutlined, FilterOutlined, DownloadOutlined, RobotOutlined
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -562,6 +562,15 @@ export default function Orders() {
                 { title: '单价', dataIndex: 'unit_price', render: v => `$${Number(v || 0).toFixed(2)}` },
               ]}
             />
+            <Divider />
+            <Button 
+              type="dashed" 
+              icon={<RobotOutlined />} 
+              onClick={() => navigate(`/ai-assistant/order/${detailRecord.id}`)}
+              style={{ width: '100%', color: '#722ed1', borderColor: '#722ed1' }}
+            >
+              让 AI 分析此订单
+            </Button>
           </>
         )}
       </Drawer>

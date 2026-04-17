@@ -6,7 +6,8 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import {
   ShopOutlined, TeamOutlined, FileTextOutlined,
-  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined
+  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './AuthContext';
 import Login from './pages/Login';
@@ -17,6 +18,7 @@ import Statistics from './pages/Statistics';
 import AnalysisList from './pages/Analysis';
 import AnalysisDetail from './pages/Analysis/detail';
 import ChangePassword from './pages/ChangePassword';
+import AIAssistant from './pages/AIAssistant';
 import 'antd/dist/reset.css';
 import './App.css';
 
@@ -31,6 +33,7 @@ const menuItems = [
   { key: '/products', icon: <ShopOutlined />, label: '产品管理' },
   { key: '/statistics', icon: <BarChartOutlined />, label: '订单统计' },
   { key: '/analysis', icon: <LineChartOutlined />, label: '客户分析' },
+  { key: '/ai-assistant', icon: <RobotOutlined />, label: 'AI 助手' },
 ];
 
 /** 路由守卫：未登录跳转到登录页，首次登录强制改密码 */
@@ -129,6 +132,8 @@ function AppLayout() {
             <Route path="/analysis" element={<AnalysisList />} />
             <Route path="/analysis/:id" element={<AnalysisDetail />} />
             <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/ai-assistant" element={<AIAssistant />} />
+            <Route path="/ai-assistant/:contextType/:contextId" element={<AIAssistant />} />
           </Routes>
         </Content>
       </Layout>

@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
@@ -24,6 +25,7 @@ app.use('/api/customers', authMiddleware, require('./routes/customers'));
 app.use('/api/orders', authMiddleware, require('./routes/orders'));
 app.use('/api/statistics', authMiddleware, require('./routes/statistics'));
 app.use('/api/analysis', authMiddleware, require('./routes/analysis'));
+app.use('/api/ai', authMiddleware, require('./routes/ai'));
 
 // 异步启动
 async function start() {

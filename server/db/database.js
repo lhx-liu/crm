@@ -155,6 +155,32 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // AI 对话会话表
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS ai_conversations (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        title VARCHAR(255),
+        context_type VARCHAR(50),
+        context_id INT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // AI 对话消息表
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS ai_messages (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        conversation_id INT NOT NULL,
+        role ENUM('user', 'assistant', 'system') NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
   } finally {
     conn.release();
   }

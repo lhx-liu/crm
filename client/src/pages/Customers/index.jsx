@@ -3,7 +3,7 @@ import {
   Table, Button, Input, Select, Space, Modal, Form, Popconfirm,
   message, Typography, Tag, Divider, Card
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, LineChartOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, LineChartOutlined, MinusCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -89,9 +89,10 @@ export default function Customers() {
       render: (_, r) => r.contacts?.length ? r.contacts.map((c, i) => <div key={i}>{c.name || '-'}</div>) : '-'
     },
     {
-      title: '操作', key: 'action', width: 180, fixed: 'right',
+      title: '操作', key: 'action', width: 240, fixed: 'right',
       render: (_, record) => (
         <Space>
+          <Button size="small" icon={<RobotOutlined />} style={{ color: '#722ed1', borderColor: '#722ed1' }} onClick={() => navigate(`/ai-assistant/customer/${record.id}`)}>AI分析</Button>
           <Button size="small" icon={<LineChartOutlined />} onClick={() => navigate(`/analysis/${record.id}`)}>分析</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
           <Popconfirm
