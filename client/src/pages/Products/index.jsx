@@ -47,7 +47,7 @@ export default function Products() {
         await api.put(`/products/categories/${editCategory.id}`, values);
         message.success('更新成功');
       } else {
-        await api.post('/products/categories', values);
+        await api.post('/products', values);
         message.success('新增成功');
       }
       setCategoryModalOpen(false);

@@ -34,6 +34,9 @@ export default function Orders() {
   const [newCustomerForm] = Form.useForm();
   const [newProductModal, setNewProductModal] = useState(false);
   const [newProductForm] = Form.useForm();
+  const [newCategoryModal, setNewCategoryModal] = useState(false);
+  const [newCategoryForm] = Form.useForm();
+  const [activeCategoryItemIdx, setActiveCategoryItemIdx] = useState(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -168,6 +171,29 @@ export default function Orders() {
     setNewProductModal(false);
     newProductForm.resetFields();
     fetchCategories();
+  };
+
+  // 快捷新增大类
+  const handleAddCategory = async () => {
+    try {
+      const values = await newCategoryForm.validateFields();
+      const res = await api.post('/products', values);
+      message.success('大类新增成功');
+      setNewCategoryModal(false);
+      newCategoryForm.resetFields();
+      await fetchCategories();
+      // 自动选中新创建的大类，回填到触发的那一行
+      const newCategoryId = res.data?.id;
+      if (newCategoryId && activeCategoryItemIdx !== null) {
+        setSelectedCategoryId(newCategoryId);
+        const items = form.getFieldValue('items') || [];
+        const idx = activeCategoryItemIdx;
+        items[idx] = { ...items[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined };
+        form.setFieldValue('items', items);
+      }
+    } catch (err) {
+      if (err?.response?.data?.message) message.error(err.response.data.message);
+    }
   };
 
   // 处理大类选择变化
@@ -398,7 +424,7 @@ export default function Orders() {
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
         okText="保存" cancelText="取消"
-        width={800} destroyOnClose
+        width={800} destroyOnClose maskClosable={false}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           {/* 产品明细放在前面 */}
@@ -418,6 +444,13 @@ export default function Orders() {
                             setSelectedCategoryId(v);
                             handleCategoryChange(v, [name]);
                           }}
+                          dropdownRender={menu => (
+                            <>
+                              {menu}
+                              <Divider style={{ margin: '4px 0' }} />
+                              <Button type="link" icon={<PlusOutlined />} onClick={() => { setActiveCategoryItemIdx(name); newCategoryForm.resetFields(); setNewCategoryModal(true); }} block>快速新增大类</Button>
+                            </>
+                          )}
                         >
                           {categories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
                         </Select>
@@ -625,6 +658,18 @@ export default function Orders() {
           </Form.Item>
           <Form.Item name="model" label="型号名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="price" label="单价($)"><InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" /></Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 快捷新增大类 */}
+      <Modal title="快速新增大类" open={newCategoryModal} onOk={handleAddCategory} onCancel={() => setNewCategoryModal(false)} okText="新增" cancelText="取消" destroyOnClose>
+        <Form form={newCategoryForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="name" label="大类名称" rules={[{ required: true, message: '请输入大类名称' }]}>
+            <Input placeholder="如：灭菌器" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={2} placeholder="选填" />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

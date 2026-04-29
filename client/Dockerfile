@@ -36,8 +36,8 @@ COPY --from=build /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # 复制 SSL 证书
-COPY crm_crmly_cc_cd_integrated.pem /etc/nginx/ssl/
-COPY crm_crmly_cc_cd.key /etc/nginx/ssl/
+COPY crmly_top_integrated.pem /etc/nginx/ssl/
+COPY crmly_top.key /etc/nginx/ssl/
 
 # 暴露端口
 EXPOSE 80 443

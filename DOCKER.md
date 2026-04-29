@@ -41,7 +41,7 @@ docker-compose logs -f
 
 ### 2. 访问应用
 
-- 前端访问地址: https://crm.crmly.cc.cd （或 http://localhost）
+- 前端访问地址: https://crmly.top （或 http://localhost）
 - 后端 API 地址: http://localhost:3001
 - 健康检查: http://localhost:3001/api/health
 
