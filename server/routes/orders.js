@@ -4,7 +4,7 @@ const { getPool } = require('../db/database');
 
 async function getOrderWithItems(db, orderId) {
   const [orderRows] = await db.execute(`
-    SELECT o.*, c.company_name, c.country, c.level, c.continent, c.source, c.opportunity
+    SELECT o.*, c.company_name, c.country, c.level, c.continent, c.source, c.opportunity, c.lead_no
     FROM orders o
     LEFT JOIN customers c ON o.customer_id = c.id
     WHERE o.id = ?
@@ -13,7 +13,7 @@ async function getOrderWithItems(db, orderId) {
 
   const order = orderRows[0];
   const [items] = await db.execute(`
-    SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
+    SELECT oi.*, pm.model as product_model, pm.price as model_price, pm.category_id, pc.name as category_name
     FROM order_items oi
     LEFT JOIN product_models pm ON oi.model_id = pm.id
     LEFT JOIN product_categories pc ON pm.category_id = pc.id
@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     const { company_name, order_date_start, order_date_end, country, level, continent, source, customer_type, customer_id } = req.query;
 
     let sql = `
-      SELECT o.*, c.company_name, c.country, c.level, c.continent, c.source, c.opportunity
+      SELECT o.*, c.company_name, c.country, c.level, c.continent, c.source, c.opportunity, c.lead_no
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE 1=1
@@ -51,16 +51,39 @@ router.get('/', async (req, res) => {
 
     const [orders] = await db.execute(sql, params);
 
-    // 查询每个订单的产品明细
-    for (const order of orders) {
-      const [items] = await db.execute(`
-        SELECT oi.*, pm.model as product_model, pm.price as model_price, pc.name as category_name
+    // 批量查询产品明细和联系人（消除 N+1）
+    if (orders.length > 0) {
+      const orderIds = orders.map(o => o.id);
+      const customerIds = [...new Set(orders.map(o => o.customer_id).filter(Boolean))];
+
+      // 批量查 items
+      const [allItems] = await db.execute(`
+        SELECT oi.*, pm.model as product_model, pm.price as model_price, pm.category_id, pc.name as category_name
         FROM order_items oi
         LEFT JOIN product_models pm ON oi.model_id = pm.id
         LEFT JOIN product_categories pc ON pm.category_id = pc.id
-        WHERE oi.order_id = ?
-      `, [order.id]);
-      order.items = items;
+        WHERE oi.order_id IN (${orderIds.map(() => '?').join(',')})
+      `, orderIds);
+      const itemMap = {};
+      for (const item of allItems) {
+        (itemMap[item.order_id] ??= []).push(item);
+      }
+
+      // 批量查 contacts
+      const [allContacts] = await db.execute(`
+        SELECT ct.customer_id, ct.name, ct.email, ct.phone
+        FROM contacts ct
+        WHERE ct.customer_id IN (${customerIds.map(() => '?').join(',')})
+      `, customerIds);
+      const contactMap = {};
+      for (const ct of allContacts) {
+        (contactMap[ct.customer_id] ??= []).push(ct);
+      }
+
+      for (const order of orders) {
+        order.items = itemMap[order.id] || [];
+        order.contacts = contactMap[order.customer_id] || [];
+      }
     }
 
     res.json({ success: true, data: orders });

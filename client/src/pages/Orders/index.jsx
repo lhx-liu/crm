@@ -97,14 +97,25 @@ export default function Orders() {
     setModalOpen(true);
   };
 
-  const openEdit = async (record) => {
+  const openEdit = (record) => {
     setEditRecord(record);
+    // 直接使用列表数据，不再额外请求接口
+    const order = record;
     form.setFieldsValue({
-      ...record,
-      order_date: record.order_date ? dayjs(record.order_date) : null,
-      payment_date: record.payment_date ? dayjs(record.payment_date) : null,
-      items: record.items?.length ? record.items.map(i => ({ model_id: i.model_id, category_id: i.category_id, quantity: i.quantity, unit_price: i.unit_price })) : [{}],
+      ...order,
+      order_date: order.order_date ? dayjs(order.order_date) : null,
+      payment_date: order.payment_date ? dayjs(order.payment_date) : null,
+      items: order.items?.length ? order.items.map(i => ({
+        model_id: i.model_id ? Number(i.model_id) : undefined,
+        category_id: i.category_id ? Number(i.category_id) : undefined,
+        quantity: i.quantity,
+        unit_price: i.unit_price
+      })) : [{}],
     });
+    // 设置第一行的 selectedCategoryId 用于型号列表加载
+    if (order.items?.length && order.items[0].category_id) {
+      setSelectedCategoryId(Number(order.items[0].category_id));
+    }
     setModalOpen(true);
   };
 
@@ -248,10 +259,10 @@ export default function Orders() {
 
       // 遍历每个订单
       data.forEach(order => {
-        // 联系人信息（用逗号分隔）
-        const contactNames = order.contacts?.map(c => c.name).filter(Boolean).join(', ') || '-';
-        const contactEmails = order.contacts?.map(c => c.email).filter(Boolean).join(', ') || '-';
-        const contactPhones = order.contacts?.map(c => c.phone).filter(Boolean).join(', ') || '-';
+        // 联系人信息：多个联系人用逗号+换行分隔，每个联系人用斜杠分隔姓名/邮箱/电话
+        const contactInfo = order.contacts?.length
+          ? order.contacts.map(c => [c.name, c.email, c.phone].filter(Boolean).join('/')).join(',\n')
+          : '-';
 
         // 基础行数据（订单和客户信息）
         const baseRow = {
@@ -260,7 +271,6 @@ export default function Orders() {
           '新老客户': order.customer_type || '-',
           '请购单号': order.purchase_order_no || '-',
           '线索编号': order.lead_no || '-',
-          '订单总金额': order.total_amount ? `$${Number(order.total_amount).toFixed(2)}` : '-',
           '到款金额': order.payment_amount ? `$${Number(order.payment_amount).toFixed(2)}` : '-',
           '到款日期': order.payment_date || '-',
           '发票金额': order.invoice_amount ? `$${Number(order.invoice_amount).toFixed(2)}` : '-',
@@ -274,9 +284,7 @@ export default function Orders() {
           '客户商机': order.opportunity || '-',
           '客户背调': order.background || '-',
           '潜在订单询价': order.potential_inquiry || '-',
-          '联系人姓名': contactNames,
-          '联系人邮箱': contactEmails,
-          '联系人电话': contactPhones,
+          '联系人信息': contactInfo,
         };
 
         // 处理产品明细
@@ -288,7 +296,7 @@ export default function Orders() {
               '产品大类': item.category_name || '-',
               '产品型号': item.product_model || '-',
               '数量': item.quantity || '-',
-              '单价': item.unit_price ? `$${Number(item.unit_price).toFixed(2)}` : '-',
+              '金额': (item.unit_price && item.quantity) ? `$${Number(item.unit_price * item.quantity).toFixed(2)}` : '-',
             });
           });
         } else {
@@ -298,7 +306,7 @@ export default function Orders() {
             '产品大类': '-',
             '产品型号': '-',
             '数量': '-',
-            '单价': '-',
+            '金额': '-',
           });
         }
       });
@@ -314,7 +322,6 @@ export default function Orders() {
         { wch: 10 },  // 新老客户
         { wch: 15 },  // 请购单号
         { wch: 15 },  // 线索编号
-        { wch: 12 },  // 订单总金额
         { wch: 12 },  // 到款金额
         { wch: 12 },  // 到款日期
         { wch: 12 },  // 发票金额
@@ -331,10 +338,8 @@ export default function Orders() {
         { wch: 20 },  // 产品大类
         { wch: 15 },  // 产品型号
         { wch: 10 },  // 数量
-        { wch: 12 },  // 单价
-        { wch: 20 },  // 联系人姓名
-        { wch: 25 },  // 联系人邮箱
-        { wch: 20 },  // 联系人电话
+        { wch: 12 },  // 金额
+        { wch: 35 },  // 联系人信息
       ];
       ws['!cols'] = colWidths;
 
@@ -463,7 +468,7 @@ export default function Orders() {
                             </>
                           )}
                         >
-                          {categories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+                          {categories.map(c => <Option key={c.id} value={Number(c.id)}>{c.name}</Option>)}
                         </Select>
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'model_id']} label="产品型号" style={{ width: 220, marginBottom: 0 }} rules={[{ required: true, message: '请选择型号' }]}>
@@ -482,14 +487,27 @@ export default function Orders() {
                             </>
                           )}
                         >
-                          {(categories.find(c => c.id === form.getFieldValue(['items', name, 'category_id']))?.models || []).map(m => <Option key={m.id} value={m.id}>{m.model} (${Number(m.price).toFixed(2)})</Option>)}
+                          {(categories.find(c => String(c.id) === String(form.getFieldValue(['items', name, 'category_id']) || ''))?.models || []).map(m => <Option key={m.id} value={Number(m.id)}>{m.model} (${Number(m.price).toFixed(2)})</Option>)}
                         </Select>
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 100, marginBottom: 0 }}>
                         <InputNumber min={0} style={{ width: '100%' }} />
                       </Form.Item>
-                      <Form.Item {...restField} name={[name, 'unit_price']} label="单价($)" style={{ width: 130, marginBottom: 0 }}>
-                        <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" />
+                      <Form.Item {...restField} name={[name, 'unit_price']} hidden><InputNumber /></Form.Item>
+                      <Form.Item noStyle shouldUpdate={(prev, cur) => {
+                        const prevItem = prev.items?.[name];
+                        const curItem = cur.items?.[name];
+                        return prevItem?.quantity !== curItem?.quantity || prevItem?.unit_price !== curItem?.unit_price;
+                      }}>
+                        {({ getFieldValue }) => {
+                          const qty = getFieldValue(['items', name, 'quantity']) || 0;
+                          const price = getFieldValue(['items', name, 'unit_price']) || 0;
+                          return (
+                            <Form.Item label="金额($)" style={{ width: 130, marginBottom: 0 }}>
+                              <InputNumber value={Number(qty) * Number(price)} disabled precision={2} style={{ width: '100%' }} prefix="$" />
+                            </Form.Item>
+                          );
+                        }}
                       </Form.Item>
                     </Space>
                   </Card>
@@ -506,6 +524,12 @@ export default function Orders() {
               <Select
                 showSearch placeholder="请选择或搜索客户"
                 filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
+                onChange={(value) => {
+                  const customer = customers.find(c => c.id === value);
+                  if (customer) {
+                    form.setFieldsValue({ lead_no: customer.lead_no || '' });
+                  }
+                }}
                 dropdownRender={menu => (
                   <>
                     {menu}
@@ -523,6 +547,7 @@ export default function Orders() {
                 <Option value="老客户">老客户</Option>
               </Select>
             </Form.Item>
+            <Form.Item name="lead_no" label="线索编号" style={{ width: 200 }}><Input disabled placeholder="选择客户后自动填充" /></Form.Item>
             <Form.Item name="order_date" label="订单日期" style={{ width: 180 }}>
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
@@ -534,7 +559,6 @@ export default function Orders() {
           {/* 其他字段放最后 */}
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="purchase_order_no" label="请购单号" style={{ width: 200 }}><Input /></Form.Item>
-            <Form.Item name="lead_no" label="线索编号" style={{ width: 200 }}><Input /></Form.Item>
             <Form.Item name="payment_amount" label="到款金额($)" style={{ width: 160 }}>
               <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" />
             </Form.Item>
@@ -594,7 +618,6 @@ export default function Orders() {
               <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: '#1677ff' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
               <Descriptions.Item label="发票金额">{detailRecord.invoice_amount ? `$${Number(detailRecord.invoice_amount).toFixed(2)}` : '-'}</Descriptions.Item>
               <Descriptions.Item label="EXW货值">{detailRecord.exw_value ? `$${Number(detailRecord.exw_value).toFixed(2)}` : '-'}</Descriptions.Item>
-              <Descriptions.Item label="订单总金额"><strong>${Number(detailRecord.total_amount || 0).toFixed(2)}</strong></Descriptions.Item>
             </Descriptions>
 
             <Divider>产品明细</Divider>
@@ -607,7 +630,7 @@ export default function Orders() {
                 { title: '产品大类', dataIndex: 'category_name' },
                 { title: '型号', dataIndex: 'product_model' },
                 { title: '数量', dataIndex: 'quantity' },
-                { title: '单价', dataIndex: 'unit_price', render: v => `$${Number(v || 0).toFixed(2)}` },
+                { title: '金额', render: (_, r) => `$${Number((r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}` },
               ]}
             />
           </>
@@ -619,6 +642,9 @@ export default function Orders() {
         <Form form={newCustomerForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="company_name" label="客户公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
             <Input placeholder="请输入公司名称" />
+          </Form.Item>
+          <Form.Item name="lead_no" label="线索编号" rules={[{ required: true, message: '请输入线索编号' }]}>
+            <Input placeholder="请输入线索编号" />
           </Form.Item>
           <Form.Item name="level" label="客户等级">
             <Select placeholder="请选择客户等级" allowClear>

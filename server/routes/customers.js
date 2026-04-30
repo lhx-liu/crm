@@ -16,10 +16,20 @@ router.get('/', async (req, res) => {
 
     const [customers] = await db.execute(sql, params);
 
-    // 查询联系人
-    for (const c of customers) {
-      const [contacts] = await db.execute('SELECT * FROM contacts WHERE customer_id = ?', [c.id]);
-      c.contacts = contacts;
+    // 批量查询联系人（消除 N+1）
+    if (customers.length > 0) {
+      const customerIds = customers.map(c => c.id);
+      const [allContacts] = await db.execute(
+        `SELECT * FROM contacts WHERE customer_id IN (${customerIds.map(() => '?').join(',')})`,
+        customerIds
+      );
+      const contactMap = {};
+      for (const ct of allContacts) {
+        (contactMap[ct.customer_id] ??= []).push(ct);
+      }
+      for (const c of customers) {
+        c.contacts = contactMap[c.id] || [];
+      }
     }
 
     res.json({ success: true, data: customers });
@@ -48,12 +58,13 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const db = getPool();
-    const { company_name, level, opportunity, background, country, nature, source, continent, potential_inquiry, contacts } = req.body;
+    const { company_name, lead_no, level, opportunity, background, country, nature, source, continent, potential_inquiry, contacts } = req.body;
     if (!company_name) return res.status(400).json({ success: false, message: '客户公司名称为必填项' });
+    if (!lead_no) return res.status(400).json({ success: false, message: '线索编号为必填项' });
 
     const [result] = await db.execute(
-      `INSERT INTO customers (company_name, level, opportunity, background, country, nature, source, continent, potential_inquiry) VALUES (?,?,?,?,?,?,?,?,?)`,
-      [company_name, level || null, opportunity || null, background || null, country || null, nature || null, source || null, continent || null, potential_inquiry || null]
+      `INSERT INTO customers (company_name, lead_no, level, opportunity, background, country, nature, source, continent, potential_inquiry) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [company_name, lead_no, level || null, opportunity || null, background || null, country || null, nature || null, source || null, continent || null, potential_inquiry || null]
     );
 
     const [customerRows] = await db.execute('SELECT * FROM customers WHERE id = ?', [result.insertId]);
@@ -76,11 +87,11 @@ router.put('/:id', async (req, res) => {
   try {
     const db = getPool();
     const { id } = req.params;
-    const { company_name, level, opportunity, background, country, nature, source, continent, potential_inquiry, contacts } = req.body;
+    const { company_name, lead_no, level, opportunity, background, country, nature, source, continent, potential_inquiry, contacts } = req.body;
 
     await db.execute(
-      `UPDATE customers SET company_name=?, level=?, opportunity=?, background=?, country=?, nature=?, source=?, continent=?, potential_inquiry=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-      [company_name, level || null, opportunity || null, background || null, country || null, nature || null, source || null, continent || null, potential_inquiry || null, id]
+      `UPDATE customers SET company_name=?, lead_no=?, level=?, opportunity=?, background=?, country=?, nature=?, source=?, continent=?, potential_inquiry=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+      [company_name, lead_no || null, level || null, opportunity || null, background || null, country || null, nature || null, source || null, continent || null, potential_inquiry || null, id]
     );
 
     // 删除旧联系人，重新插入

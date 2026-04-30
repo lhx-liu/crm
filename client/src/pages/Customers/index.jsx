@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Button, Input, Select, Space, Modal, Form, Popconfirm,
-  message, Typography, Tag, Divider, Card
+  message, Typography, Tag, Divider, Card, Drawer, Descriptions
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, LineChartOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, LineChartOutlined, MinusCircleOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 import api from '../../api';
 
 const { Title } = Typography;
@@ -19,6 +21,8 @@ export default function Customers() {
   const [levelFilter, setLevelFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailRecord, setDetailRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
@@ -42,6 +46,11 @@ export default function Customers() {
     setEditRecord(record);
     form.setFieldsValue({ ...record, contacts: record.contacts?.length ? record.contacts : [{}] });
     setModalOpen(true);
+  };
+
+  const openDetail = (record) => {
+    setDetailRecord(record);
+    setDetailOpen(true);
   };
 
   const handleSave = async () => {
@@ -71,6 +80,63 @@ export default function Customers() {
     }
   };
 
+  // 导出Excel
+  const handleExportExcel = () => {
+    if (!data || data.length === 0) {
+      message.warning('没有数据可导出');
+      return;
+    }
+
+    try {
+      const exportData = data.map(c => {
+        // 联系人信息：多个联系人用逗号+换行分隔，每个联系人用斜杠分隔姓名/邮箱/电话
+        const contactInfo = c.contacts?.length
+          ? c.contacts.map(ct => [ct.name, ct.email, ct.phone].filter(Boolean).join('/')).join(',\n')
+          : '-';
+
+        return {
+          '公司名称': c.company_name || '-',
+          '线索编号': c.lead_no || '-',
+          '客户等级': c.level || '-',
+          '所属国家': c.country || '-',
+          '所属大洲': c.continent || '-',
+          '客户性质': c.nature || '-',
+          '客户来源': c.source || '-',
+          '客户商机': c.opportunity || '-',
+          '客户背调': c.background || '-',
+          '潜在订单询价': c.potential_inquiry || '-',
+          '联系人信息': contactInfo,
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // 设置列宽
+      ws['!cols'] = [
+        { wch: 30 },  // 公司名称
+        { wch: 15 },  // 线索编号
+        { wch: 10 },  // 客户等级
+        { wch: 12 },  // 所属国家
+        { wch: 12 },  // 所属大洲
+        { wch: 12 },  // 客户性质
+        { wch: 15 },  // 客户来源
+        { wch: 30 },  // 客户商机
+        { wch: 30 },  // 客户背调
+        { wch: 30 },  // 潜在订单询价
+        { wch: 35 },  // 联系人信息
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, '客户数据');
+      const fileName = `客户数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      message.success('导出成功');
+    } catch (err) {
+      console.error('导出失败:', err);
+      message.error('导出失败');
+    }
+  };
+
   const columns = [
     { title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 160,
       render: (v, r) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/orders?customer_id=${r.id}&company_name=${v}`)}>{v}</Button>
@@ -89,9 +155,10 @@ export default function Customers() {
       render: (_, r) => r.contacts?.length ? r.contacts.map((c, i) => <div key={i}>{c.name || '-'}</div>) : '-'
     },
     {
-      title: '操作', key: 'action', width: 180, fixed: 'right',
+      title: '操作', key: 'action', width: 240, fixed: 'right',
       render: (_, record) => (
         <Space>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)}>详情</Button>
           <Button size="small" icon={<LineChartOutlined />} onClick={() => navigate(`/analysis/${record.id}`)}>分析</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
           <Popconfirm
@@ -112,7 +179,10 @@ export default function Customers() {
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>客户管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增客户</Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出Excel</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增客户</Button>
+        </Space>
       </div>
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 220 }} onSearch={v => setSearch(v)} onChange={e => !e.target.value && setSearch('')} />
@@ -132,8 +202,45 @@ export default function Customers() {
         pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
         bordered
         size="middle"
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1600 }}
       />
+
+      {/* 客户详情 Drawer */}
+      <Drawer title="客户详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={650}>
+        {detailRecord && (
+          <>
+            <Descriptions title="基本信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="公司名称">{detailRecord.company_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag color={LEVEL_COLOR[detailRecord.level]}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
+              <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
+              <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户性质">{detailRecord.nature || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户来源">{detailRecord.source || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户商机" span={2}>{detailRecord.opportunity || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户背调" span={2}>{detailRecord.background || '-'}</Descriptions.Item>
+              <Descriptions.Item label="潜在订单询价" span={2}>{detailRecord.potential_inquiry || '-'}</Descriptions.Item>
+            </Descriptions>
+
+            {detailRecord.contacts && detailRecord.contacts.length > 0 && (
+              <>
+                <Divider>联系人信息</Divider>
+                <Table
+                  rowKey={(r, i) => i}
+                  size="small"
+                  pagination={false}
+                  dataSource={detailRecord.contacts}
+                  columns={[
+                    { title: '姓名', dataIndex: 'name', render: v => v || '-' },
+                    { title: '邮箱', dataIndex: 'email', render: v => v || '-' },
+                    { title: '联系方式', dataIndex: 'phone', render: v => v || '-' },
+                  ]}
+                />
+              </>
+            )}
+          </>
+        )}
+      </Drawer>
 
       <Modal
         title={editRecord ? '编辑客户' : '新增客户'}
@@ -148,6 +255,9 @@ export default function Customers() {
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="company_name" label="客户公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
             <Input placeholder="请输入公司名称" />
+          </Form.Item>
+          <Form.Item name="lead_no" label="线索编号" rules={[{ required: true, message: '请输入线索编号' }]}>
+            <Input placeholder="请输入线索编号" />
           </Form.Item>
           <Form.Item name="level" label="客户等级">
             <Select placeholder="请选择客户等级" allowClear>

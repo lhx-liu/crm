@@ -89,15 +89,23 @@ router.get('/:id/timeline', async (req, res) => {
     const { id } = req.params;
     const [orders] = await db.execute(`SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC`, [id]);
 
-    for (const order of orders) {
-      const [items] = await db.execute(`
-        SELECT oi.quantity, oi.unit_price, pm.model as product_model, pc.name as category_name
+    // 批量查询产品明细（消除 N+1）
+    if (orders.length > 0) {
+      const orderIds = orders.map(o => o.id);
+      const [allItems] = await db.execute(`
+        SELECT oi.quantity, oi.unit_price, oi.order_id, pm.model as product_model, pc.name as category_name
         FROM order_items oi 
         LEFT JOIN product_models pm ON oi.model_id = pm.id
         LEFT JOIN product_categories pc ON pm.category_id = pc.id
-        WHERE oi.order_id = ?
-      `, [order.id]);
-      order.items = items;
+        WHERE oi.order_id IN (${orderIds.map(() => '?').join(',')})
+      `, orderIds);
+      const itemMap = {};
+      for (const item of allItems) {
+        (itemMap[item.order_id] ??= []).push(item);
+      }
+      for (const order of orders) {
+        order.items = itemMap[order.id] || [];
+      }
     }
 
     res.json({ success: true, data: orders });

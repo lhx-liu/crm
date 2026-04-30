@@ -28,9 +28,20 @@ router.get('/categories-with-models', async (req, res) => {
   try {
     const db = getPool();
     const [categories] = await db.execute('SELECT * FROM product_categories ORDER BY created_at DESC');
-    for (const cat of categories) {
-      const [models] = await db.execute('SELECT * FROM product_models WHERE category_id = ? ORDER BY created_at DESC', [cat.id]);
-      cat.models = models;
+    // 批量查询型号（消除 N+1）
+    if (categories.length > 0) {
+      const catIds = categories.map(c => c.id);
+      const [allModels] = await db.execute(
+        `SELECT * FROM product_models WHERE category_id IN (${catIds.map(() => '?').join(',')}) ORDER BY created_at DESC`,
+        catIds
+      );
+      const modelMap = {};
+      for (const m of allModels) {
+        (modelMap[m.category_id] ??= []).push(m);
+      }
+      for (const cat of categories) {
+        cat.models = modelMap[cat.id] || [];
+      }
     }
     res.json({ success: true, data: categories });
   } catch (err) {

@@ -9,10 +9,11 @@ const DB_CONFIG = {
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE || 'crm_db',
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  connectionLimit: 30,
+  queueLimit: 100,
   charset: 'utf8mb4',
-  timezone: '+08:00'
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 30000,
 };
 
 let pool = null;
@@ -86,6 +87,7 @@ async function createTables() {
       CREATE TABLE IF NOT EXISTS customers (
         id INT PRIMARY KEY AUTO_INCREMENT,
         company_name VARCHAR(255) NOT NULL,
+        lead_no VARCHAR(255) NOT NULL DEFAULT '',
         level ENUM('A','B','C'),
         opportunity TEXT,
         background TEXT,
@@ -154,6 +156,27 @@ async function createTables() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    // 创建索引（使用 IF NOT EXISTS 兼容重复执行）
+    const indexes = [
+      'CREATE INDEX idx_contacts_customer_id ON contacts(customer_id)',
+      'CREATE INDEX idx_order_items_order_id ON order_items(order_id)',
+      'CREATE INDEX idx_order_items_model_id ON order_items(model_id)',
+      'CREATE INDEX idx_orders_customer_id ON orders(customer_id)',
+      'CREATE INDEX idx_orders_order_date ON orders(order_date)',
+      'CREATE INDEX idx_product_models_category_id ON product_models(category_id)',
+    ];
+    for (const idxSql of indexes) {
+      try { await conn.execute(idxSql); } catch (e) { /* 索引已存在则忽略 */ }
+    }
+
+    // 兼容旧表：添加 lead_no 列（如果不存在）
+    try {
+      const [cols] = await conn.execute("SHOW COLUMNS FROM customers LIKE 'lead_no'");
+      if (cols.length === 0) {
+        await conn.execute("ALTER TABLE customers ADD COLUMN lead_no VARCHAR(255) NOT NULL DEFAULT '' AFTER company_name");
+      }
+    } catch (e) { /* 忽略 */ }
 
   } finally {
     conn.release();
