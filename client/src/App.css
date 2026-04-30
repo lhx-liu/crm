@@ -12,3 +12,248 @@ body {
 .ant-layout-sider {
   box-shadow: 2px 0 8px rgba(0,0,0,0.15);
 }
+
+/* ============================================
+   CRM Table System — Refined Professional
+   ============================================ */
+
+/* Page container — fills viewport, no page scrollbar */
+.crm-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 32px);
+  overflow: hidden;
+  gap: 16px;
+}
+
+/* Page header */
+.crm-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Filter bar card */
+.crm-filter-bar {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Filter items — uniform height and subtle style */
+.crm-filter-bar .ant-input-search,
+.crm-filter-bar .ant-select,
+.crm-filter-bar .ant-picker {
+  height: 32px;
+}
+
+.crm-filter-bar .ant-select .ant-select-selector {
+  border-radius: 6px !important;
+  border-color: #e2e8f0 !important;
+}
+
+.crm-filter-bar .ant-input-search .ant-input {
+  border-radius: 6px;
+  border-color: #e2e8f0;
+}
+
+.crm-filter-bar .ant-picker {
+  border-radius: 6px;
+  border-color: #e2e8f0;
+}
+
+/* Table container — fills remaining space */
+.crm-table-container {
+  flex: 1;
+  min-height: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Table wrapper inside the card — let antd table handle its own scroll */
+.crm-table-container .ant-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-table-container .ant-table-wrapper .ant-spin-nested-loading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-table-container .ant-table-wrapper .ant-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-table-container .ant-table-wrapper .ant-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.crm-table-container .ant-table-wrapper .ant-table-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-table-container .ant-table-wrapper .ant-table-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ============================================
+   Table visual refinement
+   ============================================ */
+
+/* Header */
+.crm-table-container .ant-table-thead > tr > th {
+  background: #f8f9fc !important;
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  padding: 12px 14px !important;
+  white-space: nowrap;
+}
+
+/* Body */
+.crm-table-container .ant-table-tbody > tr > td {
+  padding: 10px 14px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  font-size: 13px !important;
+  color: #334155 !important;
+  transition: background 0.15s ease;
+}
+
+/* Row hover */
+.crm-table-container .ant-table-tbody > tr:hover > td {
+  background: #f0f5ff !important;
+}
+
+/* Selected row */
+.crm-table-container .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #e8f0fe !important;
+}
+
+/* Remove outer borders */
+.crm-table-container .ant-table-container {
+  border: none !important;
+}
+
+.crm-table-container .ant-table-cell {
+  border-inline-end: none !important;
+}
+
+/* Pagination inside card */
+.crm-table-container .ant-table-pagination {
+  margin: 12px 16px !important;
+  flex-shrink: 0;
+}
+
+/* Action buttons — subtle icon buttons */
+.crm-action-btn {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 2px 6px !important;
+  height: auto !important;
+  font-size: 13px !important;
+}
+
+.crm-action-btn:hover {
+  background: #f0f5ff !important;
+}
+
+/* Tag pill refinement */
+.crm-tag {
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 1px 10px;
+  border: none;
+}
+
+/* Money highlight */
+.crm-money {
+  color: #2563eb;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Link-style text button */
+.crm-link-cell {
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.crm-link-cell:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* Expand icon style */
+.crm-expand-icon {
+  color: #94a3b8;
+  transition: color 0.2s, transform 0.2s;
+  font-size: 12px;
+}
+
+.crm-expand-icon:hover {
+  color: #2563eb;
+}
+
+/* Page title */
+.crm-page-title {
+  margin: 0 !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.02em;
+}
+
+.crm-page-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-left: 10px;
+  font-weight: 400;
+}
+
+/* Scrollbar styling */
+.crm-table-container ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.crm-table-container ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.crm-table-container ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.crm-table-container ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

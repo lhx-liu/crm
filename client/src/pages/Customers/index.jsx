@@ -9,10 +9,9 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import api from '../../api';
 
-const { Title } = Typography;
 const { Option } = Select;
 
-const LEVEL_COLOR = { A: 'red', B: 'orange', C: 'blue' };
+const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function Customers() {
   const [data, setData] = useState([]);
@@ -89,7 +88,6 @@ export default function Customers() {
 
     try {
       const exportData = data.map(c => {
-        // 联系人信息：多个联系人用逗号+换行分隔，每个联系人用斜杠分隔姓名/邮箱/电话
         const contactInfo = c.contacts?.length
           ? c.contacts.map(ct => [ct.name, ct.email, ct.phone].filter(Boolean).join('/')).join(',\n')
           : '-';
@@ -112,19 +110,9 @@ export default function Customers() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
 
-      // 设置列宽
       ws['!cols'] = [
-        { wch: 30 },  // 公司名称
-        { wch: 15 },  // 线索编号
-        { wch: 10 },  // 客户等级
-        { wch: 12 },  // 所属国家
-        { wch: 12 },  // 所属大洲
-        { wch: 12 },  // 客户性质
-        { wch: 15 },  // 客户来源
-        { wch: 30 },  // 客户商机
-        { wch: 30 },  // 客户背调
-        { wch: 30 },  // 潜在订单询价
-        { wch: 35 },  // 联系人信息
+        { wch: 30 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 35 },
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, '客户数据');
@@ -138,37 +126,38 @@ export default function Customers() {
   };
 
   const columns = [
-    { title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 160,
-      render: (v, r) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/orders?customer_id=${r.id}&company_name=${v}`)}>{v}</Button>
-    },
-    { title: '客户等级', dataIndex: 'level', key: 'level', width: 90,
-      render: v => v ? <Tag color={LEVEL_COLOR[v]}>{v}</Tag> : '-'
-    },
-    { title: '所属国家', dataIndex: 'country', key: 'country', width: 110 },
-    { title: '所属大洲', dataIndex: 'continent', key: 'continent', width: 110 },
-    { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
-    { title: '客户背调', dataIndex: 'background', key: 'background', ellipsis: true },
-    { title: '客户性质', dataIndex: 'nature', key: 'nature', width: 110 },
-    { title: '客户来源', dataIndex: 'source', key: 'source', width: 110 },
-    { title: '潜在询价', dataIndex: 'potential_inquiry', key: 'potential_inquiry', ellipsis: true },
-    { title: '联系人', key: 'contacts', width: 140,
-      render: (_, r) => r.contacts?.length ? r.contacts.map((c, i) => <div key={i}>{c.name || '-'}</div>) : '-'
+    {
+      title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 180, fixed: 'left', ellipsis: { showTitle: false },
+      render: (v, r) => (
+        <span className="crm-link-cell" onClick={() => navigate(`/orders?customer_id=${r.id}&company_name=${v}`)}>{v}</span>
+      )
     },
     {
-      title: '操作', key: 'action', width: 240, fixed: 'right',
+      title: '等级', dataIndex: 'level', key: 'level', width: 70, align: 'center',
+      render: v => v ? <Tag className="crm-tag" color={LEVEL_COLOR[v]}>{v}</Tag> : '-'
+    },
+    { title: '国家', dataIndex: 'country', key: 'country', width: 100 },
+    { title: '大洲', dataIndex: 'continent', key: 'continent', width: 90 },
+    { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
+    { title: '客户背调', dataIndex: 'background', key: 'background', ellipsis: true },
+    { title: '性质', dataIndex: 'nature', key: 'nature', width: 90 },
+    { title: '来源', dataIndex: 'source', key: 'source', width: 90 },
+    { title: '潜在询价', dataIndex: 'potential_inquiry', key: 'potential_inquiry', ellipsis: true },
+    {
+      title: '联系人', key: 'contacts', width: 120,
+      render: (_, r) => r.contacts?.length
+        ? r.contacts.map((c, i) => <div key={i} style={{ lineHeight: 1.6, fontSize: 13 }}>{c.name || '-'}</div>)
+        : <span style={{ color: '#cbd5e1' }}>-</span>
+    },
+    {
+      title: '操作', key: 'action', width: 200, fixed: 'right', align: 'center',
       render: (_, record) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)}>详情</Button>
-          <Button size="small" icon={<LineChartOutlined />} onClick={() => navigate(`/analysis/${record.id}`)}>分析</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
-          <Popconfirm
-            title="确认删除该客户？"
-            description="删除后数据将无法恢复"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确认删除"
-            cancelText="取消"
-          >
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+        <Space size={4}>
+          <Button size="small" type="text" icon={<EyeOutlined />} className="crm-action-btn" onClick={() => openDetail(record)}>详情</Button>
+          <Button size="small" type="text" icon={<LineChartOutlined />} className="crm-action-btn" onClick={() => navigate(`/analysis/${record.id}`)}>分析</Button>
+          <Button size="small" type="text" icon={<EditOutlined />} className="crm-action-btn" onClick={() => openEdit(record)}>编辑</Button>
+          <Popconfirm title="确认删除该客户？" description="删除后数据将无法恢复" onConfirm={() => handleDelete(record.id)} okText="确认删除" cancelText="取消">
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} className="crm-action-btn">删除</Button>
           </Popconfirm>
         </Space>
       )
@@ -176,34 +165,37 @@ export default function Customers() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>客户管理</Title>
-        <Space>
-          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出Excel</Button>
+    <div className="crm-page">
+      {/* Header */}
+      <div className="crm-page-header">
+        <h3 className="crm-page-title">客户管理</h3>
+        <Space size={8}>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增客户</Button>
         </Space>
       </div>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 220 }} onSearch={v => setSearch(v)} onChange={e => !e.target.value && setSearch('')} />
-        <Select placeholder="客户等级" allowClear style={{ width: 120 }} value={levelFilter || undefined} onChange={v => setLevelFilter(v || '')}>
-          <Option value="A">A级</Option>
-          <Option value="B">B级</Option>
-          <Option value="C">C级</Option>
-        </Select>
-        <Input.Search placeholder="搜索国家" allowClear style={{ width: 180 }} onSearch={v => setCountryFilter(v)} onChange={e => !e.target.value && setCountryFilter('')} />
-      </Space>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={data}
-        loading={loading}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
-        bordered
-        size="middle"
-        scroll={{ x: 1600 }}
-      />
+      {/* Filter bar */}
+      <div className="crm-filter-bar">
+        <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 200 }} onSearch={v => setSearch(v)} onChange={e => !e.target.value && setSearch('')} />
+        <Select placeholder="客户等级" allowClear style={{ width: 110 }} value={levelFilter || undefined} onChange={v => setLevelFilter(v || '')}>
+          <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
+        </Select>
+        <Input.Search placeholder="搜索国家" allowClear style={{ width: 160 }} onSearch={v => setCountryFilter(v)} onChange={e => !e.target.value && setCountryFilter('')} />
+      </div>
+
+      {/* Table */}
+      <div className="crm-table-container">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          size="middle"
+          scroll={{ x: 1400, y: 'calc(100vh - 300px)' }}
+        />
+      </div>
 
       {/* 客户详情 Drawer */}
       <Drawer title="客户详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={650}>
@@ -261,9 +253,7 @@ export default function Customers() {
           </Form.Item>
           <Form.Item name="level" label="客户等级">
             <Select placeholder="请选择客户等级" allowClear>
-              <Option value="A">A</Option>
-              <Option value="B">B</Option>
-              <Option value="C">C</Option>
+              <Option value="A">A</Option><Option value="B">B</Option><Option value="C">C</Option>
             </Select>
           </Form.Item>
           <Form.Item name="opportunity" label="客户商机"><Input.TextArea rows={2} /></Form.Item>

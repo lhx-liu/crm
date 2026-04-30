@@ -2,21 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Button, Input, Select, Space, Modal, Form, InputNumber,
   DatePicker, Popconfirm, message, Typography, Tag, Divider, Card,
-  Collapse, Drawer, Descriptions, Tooltip
+  Drawer, Descriptions, Tooltip
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
-  MinusCircleOutlined, FilterOutlined, DownloadOutlined
+  MinusCircleOutlined, DownloadOutlined
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import api from '../../api';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const { Panel } = Collapse;
 
 export default function Orders() {
   const [data, setData] = useState([]);
@@ -40,7 +39,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // 筛选条件 - 将ref改为state
+  // 筛选条件
   const [filterCustomerId, setFilterCustomerId] = useState(searchParams.get('customer_id') || '');
   const [filterCompany, setFilterCompany] = useState(searchParams.get('company_name') || '');
   const [filterDateRange, setFilterDateRange] = useState(null);
@@ -99,7 +98,6 @@ export default function Orders() {
 
   const openEdit = (record) => {
     setEditRecord(record);
-    // 直接使用列表数据，不再额外请求接口
     const order = record;
     form.setFieldsValue({
       ...order,
@@ -112,7 +110,6 @@ export default function Orders() {
         unit_price: i.unit_price
       })) : [{}],
     });
-    // 设置第一行的 selectedCategoryId 用于型号列表加载
     if (order.items?.length && order.items[0].category_id) {
       setSelectedCategoryId(Number(order.items[0].category_id));
     }
@@ -132,7 +129,6 @@ export default function Orders() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      // 计算订单总金额
       const totalAmount = (values.items || []).reduce((sum, i) => sum + (Number(i?.quantity || 0) * Number(i?.unit_price || 0)), 0);
       const payload = {
         ...values,
@@ -164,7 +160,6 @@ export default function Orders() {
     }
   };
 
-  // 快捷新增客户
   const handleAddCustomer = async () => {
     const values = await newCustomerForm.validateFields();
     await api.post('/customers', values);
@@ -174,7 +169,6 @@ export default function Orders() {
     fetchCustomers();
   };
 
-  // 快捷新增型号
   const handleAddProduct = async () => {
     const values = await newProductForm.validateFields();
     await api.post('/products/models', values);
@@ -184,11 +178,9 @@ export default function Orders() {
     fetchCategories();
   };
 
-  // 快捷新增大类
   const handleAddCategory = async () => {
     try {
       const values = await newCategoryForm.validateFields();
-      // 校验大类名称是否重复
       if (categories.some(c => c.name === values.name.trim())) {
         message.warning('该大类名称已存在，请勿重复添加');
         return;
@@ -198,11 +190,9 @@ export default function Orders() {
       setNewCategoryModal(false);
       newCategoryForm.resetFields();
       await fetchCategories();
-      // 自动选中新创建的大类，回填到触发的那一行
       const newCategoryId = res.data?.id;
       if (newCategoryId && activeCategoryItemIdx !== null) {
         setSelectedCategoryId(newCategoryId);
-        // 使用 setTimeout 确保 categories 已更新后再设置表单值
         setTimeout(() => {
           const items = form.getFieldValue('items') || [];
           const idx = activeCategoryItemIdx;
@@ -216,7 +206,6 @@ export default function Orders() {
     }
   };
 
-  // 处理大类选择变化
   const handleCategoryChange = (categoryId, itemName) => {
     const idx = itemName[1];
     const items = form.getFieldValue('items') || [];
@@ -225,7 +214,6 @@ export default function Orders() {
     form.setFieldsValue({ items: newItems });
   };
 
-  // 处理型号选择变化
   const handleModelSelect = (modelId, itemName) => {
     const idx = itemName[1];
     const currentCategoryId = form.getFieldValue(['items', idx, 'category_id']);
@@ -241,7 +229,6 @@ export default function Orders() {
     }
   };
 
-  // 点击公司名称查看该客户订单
   const handleViewCustomerOrders = (customerId, companyName) => {
     setFilterCustomerId(customerId);
     setFilterCompany(companyName);
@@ -257,14 +244,11 @@ export default function Orders() {
     try {
       const exportData = [];
 
-      // 遍历每个订单
       data.forEach(order => {
-        // 联系人信息：多个联系人用逗号+换行分隔，每个联系人用斜杠分隔姓名/邮箱/电话
         const contactInfo = order.contacts?.length
           ? order.contacts.map(c => [c.name, c.email, c.phone].filter(Boolean).join('/')).join(',\n')
           : '-';
 
-        // 基础行数据（订单和客户信息）
         const baseRow = {
           '订单ID': order.id,
           '订单日期': order.order_date || '-',
@@ -287,9 +271,7 @@ export default function Orders() {
           '联系人信息': contactInfo,
         };
 
-        // 处理产品明细
         if (order.items && order.items.length > 0) {
-          // 有产品：每个产品一行
           order.items.forEach(item => {
             exportData.push({
               ...baseRow,
@@ -300,7 +282,6 @@ export default function Orders() {
             });
           });
         } else {
-          // 没有产品：只导出订单和客户信息
           exportData.push({
             ...baseRow,
             '产品大类': '-',
@@ -311,45 +292,20 @@ export default function Orders() {
         }
       });
 
-      // 创建工作簿
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
 
-      // 设置列宽
       const colWidths = [
-        { wch: 10 },  // 订单ID
-        { wch: 12 },  // 订单日期
-        { wch: 10 },  // 新老客户
-        { wch: 15 },  // 请购单号
-        { wch: 15 },  // 线索编号
-        { wch: 12 },  // 到款金额
-        { wch: 12 },  // 到款日期
-        { wch: 12 },  // 发票金额
-        { wch: 12 },  // EXW货值
-        { wch: 30 },  // 公司名称
-        { wch: 10 },  // 客户等级
-        { wch: 12 },  // 所属国家
-        { wch: 12 },  // 所属大洲
-        { wch: 15 },  // 客户来源
-        { wch: 12 },  // 客户性质
-        { wch: 30 },  // 客户商机
-        { wch: 30 },  // 客户背调
-        { wch: 30 },  // 潜在订单询价
-        { wch: 20 },  // 产品大类
-        { wch: 15 },  // 产品型号
-        { wch: 10 },  // 数量
-        { wch: 12 },  // 金额
-        { wch: 35 },  // 联系人信息
+        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 },
+        { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 },
+        { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 15 },
+        { wch: 10 }, { wch: 12 }, { wch: 35 },
       ];
       ws['!cols'] = colWidths;
 
-      // 添加工作表到工作簿
       XLSX.utils.book_append_sheet(wb, ws, '订单数据');
-
-      // 生成文件名（包含导出时间）
       const fileName = `订单数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
-
-      // 下载文件
       XLSX.writeFile(wb, fileName);
       message.success('导出成功');
     } catch (err) {
@@ -359,29 +315,45 @@ export default function Orders() {
   };
 
   const columns = [
-    { title: '订单日期', dataIndex: 'order_date', key: 'order_date', width: 110, fixed: 'left', sorter: (a, b) => (a.order_date || '').localeCompare(b.order_date || '') },
-    { title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
-      render: v => v ? <Tag color={v === '新客户' ? 'green' : 'blue'}>{v}</Tag> : '-'
+    {
+      title: '订单日期', dataIndex: 'order_date', key: 'order_date', width: 110, fixed: 'left',
+      sorter: (a, b) => (a.order_date || '').localeCompare(b.order_date || ''),
     },
-    { title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
-      render: (v, r) => <Tooltip placement="topLeft" title={v}><Button type="link" style={{ padding: 0 }} onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</Button></Tooltip>
+    {
+      title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
+      render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? '#10b981' : '#3b82f6'}>{v}</Tag> : '-'
     },
-    { title: '产品', key: 'products', width: 160,
-      render: (_, r) => r.items?.map((i, idx) => <div key={idx}>{i.category_name || '-'}{i.product_model ? `(${i.product_model})` : ''}</div>)
+    {
+      title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
+      render: (v, r) => (
+        <Tooltip placement="topLeft" title={v}>
+          <span className="crm-link-cell" onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</span>
+        </Tooltip>
+      )
+    },
+    {
+      title: '产品', key: 'products', width: 160,
+      render: (_, r) => r.items?.map((i, idx) => (
+        <div key={idx} style={{ lineHeight: 1.6 }}>
+          <Tag style={{ marginRight: 0, borderRadius: 4, fontSize: 12 }} color="default">{i.category_name || '-'}</Tag>
+          {i.product_model && <span style={{ color: '#64748b', fontSize: 12 }}>({i.product_model})</span>}
+        </div>
+      ))
     },
     { title: '国家', dataIndex: 'country', key: 'country', width: 100 },
     { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
-    { title: '到款金额', dataIndex: 'payment_amount', key: 'payment_amount', width: 110,
-      render: v => v ? <strong style={{ color: '#1677ff' }}>${Number(v).toFixed(2)}</strong> : '-'
+    {
+      title: '到款金额', dataIndex: 'payment_amount', key: 'payment_amount', width: 110, align: 'right',
+      render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
     },
     {
-      title: '操作', key: 'action', width: 180, fixed: 'right',
+      title: '操作', key: 'action', width: 160, fixed: 'right', align: 'center',
       render: (_, record) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(record.id)}>详情</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
+        <Space size={4}>
+          <Button size="small" type="text" icon={<EyeOutlined />} className="crm-action-btn" onClick={() => openDetail(record.id)}>详情</Button>
+          <Button size="small" type="text" icon={<EditOutlined />} className="crm-action-btn" onClick={() => openEdit(record)}>编辑</Button>
           <Popconfirm title="确认删除该订单？" onConfirm={() => handleDelete(record.id)} okText="确认" cancelText="取消">
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} className="crm-action-btn">删除</Button>
           </Popconfirm>
         </Space>
       )
@@ -389,47 +361,52 @@ export default function Orders() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          订单管理
-          {filterCustomerId && filterCompany && <Text type="secondary" style={{ fontSize: 14, marginLeft: 8 }}>— {filterCompany} 的所有订单</Text>}
-        </Title>
-        <Space>
+    <div className="crm-page">
+      {/* Header */}
+      <div className="crm-page-header">
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <h3 className="crm-page-title">订单管理</h3>
+          {filterCustomerId && filterCompany && <span className="crm-page-subtitle">— {filterCompany} 的所有订单</span>}
+        </div>
+        <Space size={8}>
           {filterCustomerId && <Button onClick={() => { setFilterCustomerId(''); setFilterCompany(''); }}>查看全部订单</Button>}
-          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出Excel</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增订单</Button>
         </Space>
       </div>
 
-      {/* 主要筛选条件 */}
-      <Space style={{ marginBottom: 8 }} wrap>
-        <Input.Search placeholder="公司名称" allowClear style={{ width: 200 }} value={filterCompany} onSearch={v => { setFilterCustomerId(''); setFilterCompany(v); }} onChange={e => { if (!e.target.value) { setFilterCustomerId(''); setFilterCompany(''); } else setFilterCompany(e.target.value); }} />
-        <RangePicker placeholder={['订单开始日期', '订单结束日期']} onChange={v => setFilterDateRange(v)} />
-      </Space>
+      {/* Filter bar — 所有条件平铺 */}
+      <div className="crm-filter-bar">
+        <Input.Search
+          placeholder="公司名称" allowClear style={{ width: 160 }}
+          value={filterCompany}
+          onSearch={v => { setFilterCustomerId(''); setFilterCompany(v); }}
+          onChange={e => { if (!e.target.value) { setFilterCustomerId(''); setFilterCompany(''); } else setFilterCompany(e.target.value); }}
+        />
+        <RangePicker placeholder={['开始日期', '结束日期']} onChange={v => setFilterDateRange(v)} style={{ width: 240 }} />
+        <Input.Search placeholder="国家" allowClear style={{ width: 120 }} onSearch={v => setFilterCountry(v)} onChange={e => !e.target.value && setFilterCountry('')} />
+        <Select placeholder="客户等级" allowClear style={{ width: 100 }} onChange={v => setFilterLevel(v || '')}>
+          <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
+        </Select>
+        <Input.Search placeholder="大洲" allowClear style={{ width: 120 }} onSearch={v => setFilterContinent(v)} onChange={e => !e.target.value && setFilterContinent('')} />
+        <Input.Search placeholder="客户来源" allowClear style={{ width: 120 }} onSearch={v => setFilterSource(v)} onChange={e => !e.target.value && setFilterSource('')} />
+        <Select placeholder="新旧客户" allowClear style={{ width: 100 }} onChange={v => setFilterCustomerType(v || '')}>
+          <Option value="新客户">新客户</Option><Option value="老客户">老客户</Option>
+        </Select>
+      </div>
 
-      {/* 更多筛选条件 */}
-      <Collapse ghost style={{ marginBottom: 16 }}>
-        <Panel header={<><FilterOutlined /> 更多筛选条件</>} key="1">
-          <Space wrap>
-            <Input.Search placeholder="国家" allowClear style={{ width: 150 }} onSearch={v => setFilterCountry(v)} onChange={e => !e.target.value && setFilterCountry('')} />
-            <Select placeholder="客户等级" allowClear style={{ width: 120 }} onChange={v => setFilterLevel(v || '')}>
-              <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
-            </Select>
-            <Input.Search placeholder="大洲" allowClear style={{ width: 150 }} onSearch={v => setFilterContinent(v)} onChange={e => !e.target.value && setFilterContinent('')} />
-            <Input.Search placeholder="客户来源" allowClear style={{ width: 150 }} onSearch={v => setFilterSource(v)} onChange={e => !e.target.value && setFilterSource('')} />
-            <Select placeholder="新旧客户" allowClear style={{ width: 120 }} onChange={v => setFilterCustomerType(v || '')}>
-              <Option value="新客户">新客户</Option><Option value="老客户">老客户</Option>
-            </Select>
-          </Space>
-        </Panel>
-      </Collapse>
-
-      <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 条` }}
-        bordered size="middle" scroll={{ x: 1200 }}
-        defaultSortOrder="descend"
-      />
+      {/* Table */}
+      <div className="crm-table-container">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          size="middle"
+          scroll={{ x: 1100, y: 'calc(100vh - 320px)' }}
+        />
+      </div>
 
       {/* 订单表单 Modal */}
       <Modal
@@ -441,7 +418,6 @@ export default function Orders() {
         width={800} destroyOnClose maskClosable={false}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          {/* 产品明细放在前面 */}
           <Divider>产品明细</Divider>
           <Form.List name="items">
             {(fields, { add, remove }) => (
@@ -517,7 +493,6 @@ export default function Orders() {
             )}
           </Form.List>
 
-          {/* 基本信息 */}
           <Divider>订单信息</Divider>
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]} style={{ width: 280 }}>
@@ -556,7 +531,6 @@ export default function Orders() {
             </Form.Item>
           </Space>
 
-          {/* 其他字段放最后 */}
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="purchase_order_no" label="请购单号" style={{ width: 200 }}><Input /></Form.Item>
             <Form.Item name="payment_amount" label="到款金额($)" style={{ width: 160 }}>
@@ -576,9 +550,9 @@ export default function Orders() {
       <Drawer title="订单详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={750}>
         {detailRecord && (
           <>
-            {/* 客户信息 */}
             <Descriptions title="客户信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
               <Descriptions.Item label="公司名称">{detailRecord.company_name}</Descriptions.Item>
+              <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag color={{ A: 'red', B: 'orange', C: 'blue' }[detailRecord.level]}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
@@ -589,7 +563,6 @@ export default function Orders() {
               <Descriptions.Item label="潜在订单询价" span={2}>{detailRecord.potential_inquiry || '-'}</Descriptions.Item>
             </Descriptions>
 
-            {/* 联系人信息 */}
             {detailRecord.contacts && detailRecord.contacts.length > 0 && (
               <>
                 <Divider>联系人信息</Divider>
@@ -607,14 +580,12 @@ export default function Orders() {
               </>
             )}
 
-            {/* 订单信息 */}
             <Descriptions title="订单信息" bordered column={2} size="small" style={{ marginBottom: 16, marginTop: 16 }}>
               <Descriptions.Item label="订单ID">{detailRecord.id}</Descriptions.Item>
               <Descriptions.Item label="新老客户">{detailRecord.customer_type || '-'}</Descriptions.Item>
               <Descriptions.Item label="订单日期">{detailRecord.order_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="到款日期">{detailRecord.payment_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="请购单号">{detailRecord.purchase_order_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
               <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: '#1677ff' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
               <Descriptions.Item label="发票金额">{detailRecord.invoice_amount ? `$${Number(detailRecord.invoice_amount).toFixed(2)}` : '-'}</Descriptions.Item>
               <Descriptions.Item label="EXW货值">{detailRecord.exw_value ? `$${Number(detailRecord.exw_value).toFixed(2)}` : '-'}</Descriptions.Item>
@@ -648,9 +619,7 @@ export default function Orders() {
           </Form.Item>
           <Form.Item name="level" label="客户等级">
             <Select placeholder="请选择客户等级" allowClear>
-              <Option value="A">A</Option>
-              <Option value="B">B</Option>
-              <Option value="C">C</Option>
+              <Option value="A">A</Option><Option value="B">B</Option><Option value="C">C</Option>
             </Select>
           </Form.Item>
           <Form.Item name="opportunity" label="客户商机"><Input.TextArea rows={2} /></Form.Item>

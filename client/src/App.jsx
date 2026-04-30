@@ -119,7 +119,7 @@ function AppLayout() {
             </div>
           </Dropdown>
         </Header>
-        <Content style={{ background: '#f5f6fa', minHeight: 'calc(100vh - 64px)', padding: '16px' }}>
+        <Content style={{ background: '#f5f6fa', minHeight: 'calc(100vh - 64px)', padding: '16px', overflow: 'hidden' }}>
           <Routes>
             <Route path="/" element={<Orders />} />
             <Route path="/products" element={<Products />} />
