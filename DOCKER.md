@@ -73,15 +73,16 @@ docker exec -i crm-mysql mysql -ucrm_user -pcrm_password_2024 crm_db < backup.sq
 
 ### 6. 更新应用
 
+> **⚠️ 重要：仅更新前后台代码时，绝不能重建或删除数据库容器！**
+
 ```bash
-# 停止服务
-docker-compose down
+# ✅ 正确方式：仅重建前后台容器，不动数据库
+docker-compose up -d --build backend frontend
 
-# 拉取最新代码
-git pull
-
-# 重新构建并启动
-docker-compose up -d --build
+# ❌ 危险操作：以下命令会导致数据库重建，数据丢失！
+# docker-compose down          # 会停止所有容器包括数据库
+# docker rm -f crm-mysql       # 会删除数据库容器
+# docker-compose up -d --build # 如果数据卷名变化会创建空库
 ```
 
 ### 7. 仅重启后端
@@ -89,6 +90,13 @@ docker-compose up -d --build
 ```bash
 # 仅重新构建后端
 docker-compose up -d --build backend
+```
+
+### 8. 仅重启前端
+
+```bash
+# 仅重新构建前端
+docker-compose up -d --build frontend
 ```
 
 ## 环境变量
@@ -164,6 +172,50 @@ docker-compose down -v
 # 重新构建
 docker-compose up -d --build
 ```
+
+## ⚠️ 危险操作警示
+
+> **以下操作曾导致生产数据丢失，务必牢记教训，严禁在生产环境随意执行！**
+
+### 事故记录（2026-04-30）
+
+**事故经过**：部署更新前后台代码时，执行了 `docker rm -f crm-mysql crm-backend crm-frontend` 删除旧容器，再执行 `docker-compose up -d --build` 全量重建。由于新项目目录路径不同，Docker Compose 生成了新的数据卷名，导致 MySQL 创建了空库，原有数据不可访问。
+
+**恢复方式**：将旧数据卷 `10crm_20260417094602_mysql-data` 挂载回新容器，数据恢复。
+
+### 安全操作规范
+
+| 场景 | ✅ 正确操作 | ❌ 危险操作 |
+|------|-----------|-----------|
+| 更新前后台代码 | `docker-compose up -d --build backend frontend` | `docker-compose down` + `docker-compose up -d --build` |
+| 数据库容器异常 | `docker-compose restart mysql` | `docker rm -f crm-mysql` |
+| 清理旧容器冲突 | 先备份数据卷，再手动挂载 | `docker rm -f` 删除后重建 |
+| 完全重置系统 | 确认数据已备份后执行 | 直接 `docker-compose down -v` |
+
+### 关键原则
+
+1. **数据库容器和数据卷是独立的**：前后台更新不应触碰数据库
+2. **永远不要用 `docker-compose down` 更新应用**：该命令会停止所有服务，重建时可能产生新数据卷
+3. **`docker rm -f` 前必须确认**：删除容器前检查是否涉及数据库，确认数据卷挂载关系
+4. **新目录部署前先检查旧数据卷**：`docker volume ls | grep mysql`，确保新配置引用旧卷
+5. **操作前先备份**：重大操作前执行 `mysqldump` 备份
+
+### 服务器现有数据卷清单
+
+| 数据卷名 | 用途 | 状态 |
+|---------|------|------|
+| `10crm_20260417094602_mysql-data` | 生产 MySQL 数据（当前使用） | ✅ 在用 |
+| `10crm_20260430175010_mysql-data` | 误建空库 | 已删除 |
+| `crm-mysql-dev-data` | 开发 MySQL 数据（端口3307） | ✅ 在用 |
+
+### 服务器现有容器清单
+
+| 容器名 | 用途 | 端口 |
+|-------|------|------|
+| `crm-mysql` | 生产数据库 | 3306 |
+| `crm-mysql-dev` | 开发数据库 | 3307 |
+| `crm-backend` | 后端API | 3001 |
+| `crm-frontend` | 前端Web | 80/443 |
 
 ## 生产环境建议
 
