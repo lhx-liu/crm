@@ -43,6 +43,12 @@ export default function Products() {
   const handleSaveCategory = async () => {
     try {
       const values = await categoryForm.validateFields();
+      // 校验大类名称是否重复（编辑时排除自身）
+      const duplicate = categories.find(c => c.name === values.name.trim());
+      if (duplicate && (!editCategory || duplicate.id !== editCategory.id)) {
+        message.warning('该大类名称已存在，请勿重复添加');
+        return;
+      }
       if (editCategory) {
         await api.put(`/products/categories/${editCategory.id}`, values);
         message.success('更新成功');

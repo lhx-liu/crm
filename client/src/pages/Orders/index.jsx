@@ -177,6 +177,11 @@ export default function Orders() {
   const handleAddCategory = async () => {
     try {
       const values = await newCategoryForm.validateFields();
+      // 校验大类名称是否重复
+      if (categories.some(c => c.name === values.name.trim())) {
+        message.warning('该大类名称已存在，请勿重复添加');
+        return;
+      }
       const res = await api.post('/products', values);
       message.success('大类新增成功');
       setNewCategoryModal(false);
@@ -186,10 +191,14 @@ export default function Orders() {
       const newCategoryId = res.data?.id;
       if (newCategoryId && activeCategoryItemIdx !== null) {
         setSelectedCategoryId(newCategoryId);
-        const items = form.getFieldValue('items') || [];
-        const idx = activeCategoryItemIdx;
-        items[idx] = { ...items[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined };
-        form.setFieldValue('items', items);
+        // 使用 setTimeout 确保 categories 已更新后再设置表单值
+        setTimeout(() => {
+          const items = form.getFieldValue('items') || [];
+          const idx = activeCategoryItemIdx;
+          const newItems = [...items];
+          newItems[idx] = { ...newItems[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined };
+          form.setFieldsValue({ items: newItems });
+        }, 0);
       }
     } catch (err) {
       if (err?.response?.data?.message) message.error(err.response.data.message);
@@ -198,25 +207,25 @@ export default function Orders() {
 
   // 处理大类选择变化
   const handleCategoryChange = (categoryId, itemName) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (category) {
-      const items = form.getFieldValue('items') || [];
-      const idx = itemName[1];
-      items[idx] = { ...items[idx], category_id: categoryId, model_id: undefined, unit_price: undefined };
-      form.setFieldValue('items', items);
-    }
+    const idx = itemName[1];
+    const items = form.getFieldValue('items') || [];
+    const newItems = [...items];
+    newItems[idx] = { ...newItems[idx], category_id: categoryId, model_id: undefined, unit_price: undefined };
+    form.setFieldsValue({ items: newItems });
   };
 
   // 处理型号选择变化
   const handleModelSelect = (modelId, itemName) => {
-    const category = categories.find(c => c.id === selectedCategoryId);
+    const idx = itemName[1];
+    const currentCategoryId = form.getFieldValue(['items', idx, 'category_id']);
+    const category = categories.find(c => c.id === currentCategoryId);
     if (category) {
       const model = category.models?.find(m => m.id === modelId);
       if (model) {
         const items = form.getFieldValue('items') || [];
-        const idx = itemName[1];
-        items[idx] = { ...items[idx], model_id: modelId, unit_price: model.price };
-        form.setFieldValue('items', items);
+        const newItems = [...items];
+        newItems[idx] = { ...newItems[idx], model_id: modelId, unit_price: model.price };
+        form.setFieldsValue({ items: newItems });
       }
     }
   };
@@ -439,7 +448,9 @@ export default function Orders() {
                     <Space style={{ display: 'flex' }} wrap align="start">
                       <Form.Item {...restField} name={[name, 'category_id']} label="产品大类" style={{ width: 200, marginBottom: 0 }} rules={[{ required: true, message: '请选择大类' }]}>
                         <Select
+                          showSearch
                           placeholder="选择大类"
+                          filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
                           onChange={(v) => {
                             setSelectedCategoryId(v);
                             handleCategoryChange(v, [name]);
@@ -457,8 +468,12 @@ export default function Orders() {
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'model_id']} label="产品型号" style={{ width: 220, marginBottom: 0 }} rules={[{ required: true, message: '请选择型号' }]}>
                         <Select
+                          showSearch
                           placeholder="选择型号"
-                          onChange={(v) => handleModelSelect(v, [name])}
+                          filterOption={(input, option) => {
+                            const text = Array.isArray(option.children) ? option.children.join('') : (option.children || '');
+                            return text.toLowerCase().includes(input.toLowerCase());
+                          }}
                           dropdownRender={menu => (
                             <>
                               {menu}

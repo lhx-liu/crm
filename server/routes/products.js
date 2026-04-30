@@ -44,7 +44,10 @@ router.post('/', async (req, res) => {
     const db = getPool();
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ success: false, message: '大类名称为必填项' });
-    const [result] = await db.execute('INSERT INTO product_categories (name, description) VALUES (?, ?)', [name, description || null]);
+    // 校验名称唯一性
+    const [existing] = await db.execute('SELECT id FROM product_categories WHERE name = ?', [name.trim()]);
+    if (existing.length > 0) return res.status(400).json({ success: false, message: '该大类名称已存在' });
+    const [result] = await db.execute('INSERT INTO product_categories (name, description) VALUES (?, ?)', [name.trim(), description || null]);
     const [rows] = await db.execute('SELECT * FROM product_categories WHERE id = ?', [result.insertId]);
     res.json({ success: true, data: rows[0] });
   } catch (err) {
@@ -58,7 +61,10 @@ router.put('/categories/:id', async (req, res) => {
     const db = getPool();
     const { id } = req.params;
     const { name, description } = req.body;
-    await db.execute('UPDATE product_categories SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [name, description || null, id]);
+    // 校验名称唯一性（排除自身）
+    const [existing] = await db.execute('SELECT id FROM product_categories WHERE name = ? AND id != ?', [name.trim(), id]);
+    if (existing.length > 0) return res.status(400).json({ success: false, message: '该大类名称已存在' });
+    await db.execute('UPDATE product_categories SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [name.trim(), description || null, id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
