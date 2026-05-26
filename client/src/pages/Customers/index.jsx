@@ -14,8 +14,19 @@ const { Option } = Select;
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
+// 简易防抖 hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 export default function Customers() {
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
@@ -26,20 +37,40 @@ export default function Customers() {
   const [editRecord, setEditRecord] = useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const [exportLoading, setExportLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  // 防抖
+  const debouncedSearch = useDebounce(search, 400);
+  const debouncedCountry = useDebounce(countryFilter, 400);
+
+  // 分页状态
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 50 });
+
+  const fetchData = useCallback(async (page = pagination.current, pageSize = pagination.pageSize) => {
     setLoading(true);
     try {
-      const res = await api.get('/customers', { params: { search, level: levelFilter, country: countryFilter } });
+      const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, page, pageSize } });
       setData(res.data || []);
+      setTotal(res.total ?? (res.data || []).length);
     } catch {
       message.error('获取客户列表失败');
     } finally {
       setLoading(false);
     }
-  }, [search, levelFilter, countryFilter]);
+  }, [debouncedSearch, levelFilter, debouncedCountry, pagination.current, pagination.pageSize]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // 筛选变化时重置到第1页
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, current: 1 }));
+    fetchData(1, pagination.pageSize);
+  }, [debouncedSearch, levelFilter, debouncedCountry]);
+
+  // 分页变化查询
+  const handleTableChange = (pag) => {
+    const { current, pageSize } = pag;
+    setPagination({ current, pageSize });
+    fetchData(current, pageSize);
+  };
 
   const openAdd = () => { setEditRecord(null); form.resetFields(); form.setFieldsValue({ contacts: [{}] }); setModalOpen(true); };
   const openEdit = (record) => {
@@ -80,15 +111,12 @@ export default function Customers() {
     }
   };
 
-  // 导出Excel
-  const handleExportExcel = () => {
-    if (!data || data.length === 0) {
-      message.warning('没有数据可导出');
-      return;
-    }
-
+  // 导出Excel — 服务端全量查询
+  const handleExportExcel = async () => {
+    setExportLoading(true);
     try {
-      const exportData = data.map(c => {
+      const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, pageSize: 999999 } });
+      const exportData = (res.data || []).map(c => {
         const contactInfo = c.contacts?.length
           ? c.contacts.map(ct => [ct.name, ct.email, ct.phone].filter(Boolean).join('/')).join(',\n')
           : '-';
@@ -108,14 +136,14 @@ export default function Customers() {
         };
       });
 
+      if (!exportData.length) { message.warning('没有数据可导出'); return; }
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-
       ws['!cols'] = [
         { wch: 30 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
         { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 35 },
       ];
-
       XLSX.utils.book_append_sheet(wb, ws, '客户数据');
       const fileName = `客户数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
       XLSX.writeFile(wb, fileName);
@@ -123,6 +151,8 @@ export default function Customers() {
     } catch (err) {
       console.error('导出失败:', err);
       message.error('导出失败');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -171,18 +201,18 @@ export default function Customers() {
       <div className="crm-page-header">
         <h3 className="crm-page-title">客户管理</h3>
         <Space size={8}>
-          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={exportLoading}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增客户</Button>
         </Space>
       </div>
 
       {/* Filter bar */}
       <div className="crm-filter-bar">
-        <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 200 }} onSearch={v => setSearch(v)} onChange={e => !e.target.value && setSearch('')} />
+        <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 200 }} value={search} onSearch={v => setSearch(v)} onChange={e => { if (!e.target.value) setSearch(''); else setSearch(e.target.value); }} />
         <Select placeholder="客户等级" allowClear style={{ width: 110 }} value={levelFilter || undefined} onChange={v => setLevelFilter(v || '')}>
           <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
         </Select>
-        <Input.Search placeholder="搜索国家" allowClear style={{ width: 160 }} onSearch={v => setCountryFilter(v)} onChange={e => !e.target.value && setCountryFilter('')} />
+        <Input.Search placeholder="搜索国家" allowClear style={{ width: 160 }} value={countryFilter} onSearch={v => setCountryFilter(v)} onChange={e => { if (!e.target.value) setCountryFilter(''); else setCountryFilter(e.target.value); }} />
       </div>
 
       {/* Table */}
@@ -192,7 +222,15 @@ export default function Customers() {
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total,
+            showTotal: t => `共 ${t} 条`,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+          }}
+          onChange={handleTableChange}
           size="middle"
           scroll={{ x: 1400, y: 'calc(100vh - 300px)' }}
         />

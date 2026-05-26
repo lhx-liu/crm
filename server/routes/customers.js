@@ -2,19 +2,29 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../db/database');
 
-// 获取所有客户（带联系人）
+// 获取所有客户（带联系人，支持服务端分页）
 router.get('/', async (req, res) => {
   try {
     const db = getPool();
     const { search, level, country } = req.query;
-    let sql = 'SELECT * FROM customers WHERE 1=1';
-    const params = [];
-    if (search) { sql += ' AND company_name LIKE ?'; params.push(`%${search}%`); }
-    if (level) { sql += ' AND level = ?'; params.push(level); }
-    if (country) { sql += ' AND country LIKE ?'; params.push(`%${country}%`); }
-    sql += ' ORDER BY created_at DESC';
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
 
-    const [customers] = await db.execute(sql, params);
+    let whereSql = ' WHERE 1=1';
+    const params = [];
+    if (search) { whereSql += ' AND company_name LIKE ?'; params.push(`%${search}%`); }
+    if (level) { whereSql += ' AND level = ?'; params.push(level); }
+    if (country) { whereSql += ' AND country LIKE ?'; params.push(`%${country}%`); }
+
+    // 查总数
+    const countSql = `SELECT COUNT(*) as cnt FROM customers${whereSql}`;
+    const [countRows] = await db.execute(countSql, params);
+    const total = countRows[0].cnt;
+
+    // 分页查询
+    const offset = (page - 1) * pageSize;
+    const dataSql = `SELECT * FROM customers${whereSql} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+    const [customers] = await db.execute(dataSql, params);
 
     // 批量查询联系人（消除 N+1）
     if (customers.length > 0) {
@@ -32,7 +42,7 @@ router.get('/', async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: customers });
+    res.json({ success: true, data: customers, total, page, pageSize });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

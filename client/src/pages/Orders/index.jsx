@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Table, Button, Input, Select, Space, Modal, Form, InputNumber,
   DatePicker, Popconfirm, message, Typography, Tag, Divider, Card,
@@ -19,13 +19,23 @@ const { RangePicker } = DatePicker;
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 
+// 简易防抖 hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 export default function Orders() {
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [availableModels, setAvailableModels] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
@@ -41,7 +51,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // 筛选条件
+  // 筛选条件（即时值，用于输入框显示）
   const [filterCustomerId, setFilterCustomerId] = useState(searchParams.get('customer_id') || '');
   const [filterCompany, setFilterCompany] = useState(searchParams.get('company_name') || '');
   const [filterDateRange, setFilterDateRange] = useState(null);
@@ -51,26 +61,46 @@ export default function Orders() {
   const [filterSource, setFilterSource] = useState('');
   const [filterCustomerType, setFilterCustomerType] = useState('');
 
-  const fetchCustomers = async () => {
-    const res = await api.get('/customers');
-    setCustomers(res.data || []);
-  };
-  const fetchCategories = async () => {
-    const res = await api.get('/products/categories-with-models');
-    setCategories(res.data || []);
-  };
+  // 防抖后的筛选条件（用于发请求）
+  const debouncedCompany = useDebounce(filterCompany, 400);
+  const debouncedCountry = useDebounce(filterCountry, 400);
+  const debouncedContinent = useDebounce(filterContinent, 400);
+  const debouncedSource = useDebounce(filterSource, 400);
 
-  const fetchData = useCallback(async () => {
+  // 分页状态
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 50 });
+
+  // 导出用全量数据标记
+  const [exportLoading, setExportLoading] = useState(false);
+
+  // 客户/产品数据只 mount 时加载一次
+  useEffect(() => {
+    const fetchRef = async () => {
+      const res = await api.get('/customers');
+      setCustomers(res.data || []);
+    };
+    const fetchCat = async () => {
+      const res = await api.get('/products/categories-with-models');
+      setCategories(res.data || []);
+    };
+    fetchRef();
+    fetchCat();
+  }, []);
+
+  // 服务端分页查询
+  const fetchData = useCallback(async (page = pagination.current, pageSize = pagination.pageSize) => {
     setLoading(true);
     try {
       const params = {
-        company_name: filterCompany,
-        country: filterCountry,
+        company_name: debouncedCompany,
+        country: debouncedCountry,
         level: filterLevel,
-        continent: filterContinent,
-        source: filterSource,
+        continent: debouncedContinent,
+        source: debouncedSource,
         customer_type: filterCustomerType,
         customer_id: filterCustomerId,
+        page,
+        pageSize,
       };
       if (filterDateRange && filterDateRange[0]) {
         params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
@@ -78,18 +108,26 @@ export default function Orders() {
       }
       const res = await api.get('/orders', { params });
       setData(res.data || []);
+      setTotal(res.total ?? (res.data || []).length);
     } catch {
       message.error('获取订单列表失败');
     } finally {
       setLoading(false);
     }
-  }, [filterCompany, filterDateRange, filterCountry, filterLevel, filterContinent, filterSource, filterCustomerType, filterCustomerId]);
+  }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange, pagination.current, pagination.pageSize]);
 
+  // 筛选条件变化时重置到第1页并查询
   useEffect(() => {
-    fetchData();
-    fetchCustomers();
-    fetchCategories();
-  }, [fetchData]);
+    setPagination(prev => ({ ...prev, current: 1 }));
+    fetchData(1, pagination.pageSize);
+  }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange]);
+
+  // 分页变化查询
+  const handleTableChange = (pag) => {
+    const { current, pageSize } = pag;
+    setPagination({ current, pageSize });
+    fetchData(current, pageSize);
+  };
 
   const openAdd = () => {
     setEditRecord(null);
@@ -106,7 +144,6 @@ export default function Orders() {
       order_date: order.order_date ? dayjs(order.order_date) : null,
       payment_date: order.payment_date ? dayjs(order.payment_date) : null,
       items: order.items?.length ? order.items.map(i => {
-        // 从产品表取最新价格，而非使用旧快照 unit_price
         const latestPrice = (() => {
           for (const cat of categories) {
             const model = cat.models?.find(m => m.id === Number(i.model_id));
@@ -179,7 +216,9 @@ export default function Orders() {
     message.success('客户新增成功');
     setNewCustomerModal(false);
     newCustomerForm.resetFields();
-    fetchCustomers();
+    // 刷新客户列表
+    const res = await api.get('/customers');
+    setCustomers(res.data || []);
   };
 
   const handleAddProduct = async () => {
@@ -188,7 +227,9 @@ export default function Orders() {
     message.success('型号新增成功');
     setNewProductModal(false);
     newProductForm.resetFields();
-    fetchCategories();
+    // 刷新分类列表
+    const res = await api.get('/products/categories-with-models');
+    setCategories(res.data || []);
   };
 
   const handleAddCategory = async () => {
@@ -202,17 +243,17 @@ export default function Orders() {
       message.success('大类新增成功');
       setNewCategoryModal(false);
       newCategoryForm.resetFields();
-      await fetchCategories();
+      // 刷新分类列表
+      const catRes = await api.get('/products/categories-with-models');
+      setCategories(catRes.data || []);
       const newCategoryId = res.data?.id;
       if (newCategoryId && activeCategoryItemIdx !== null) {
         setSelectedCategoryId(newCategoryId);
-        setTimeout(() => {
-          const items = form.getFieldValue('items') || [];
-          const idx = activeCategoryItemIdx;
-          const newItems = [...items];
-          newItems[idx] = { ...newItems[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined, amount: undefined };
-          form.setFieldsValue({ items: newItems });
-        }, 0);
+        // 局部更新：只修改该行
+        form.setFieldValue(['items', activeCategoryItemIdx, 'category_id'], newCategoryId);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'model_id'], undefined);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'unit_price'], undefined);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'amount'], undefined);
       }
     } catch (err) {
       if (err?.response?.data?.message) message.error(err.response.data.message);
@@ -220,10 +261,11 @@ export default function Orders() {
   };
 
   const handleCategoryChange = (categoryId, idx) => {
-    const items = form.getFieldValue('items') || [];
-    const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], category_id: categoryId, model_id: undefined, unit_price: undefined, amount: undefined };
-    form.setFieldsValue({ items: newItems });
+    // 局部更新
+    form.setFieldValue(['items', idx, 'category_id'], categoryId);
+    form.setFieldValue(['items', idx, 'model_id'], undefined);
+    form.setFieldValue(['items', idx, 'unit_price'], undefined);
+    form.setFieldValue(['items', idx, 'amount'], undefined);
   };
 
   const handleModelSelect = (modelId, idx) => {
@@ -232,13 +274,10 @@ export default function Orders() {
     if (category) {
       const model = category.models?.find(m => String(m.id) === String(modelId));
       if (model) {
-        const items = form.getFieldValue('items') || [];
-        const currentQty = items[idx]?.quantity || 0;
-        form.setFieldsValue({
-          items: items.map((item, i) =>
-            i === idx ? { ...item, unit_price: model.price, amount: Number(currentQty || 0) * Number(model.price) } : item
-          ),
-        });
+        const currentQty = form.getFieldValue(['items', idx, 'quantity']) || 0;
+        // 局部更新
+        form.setFieldValue(['items', idx, 'unit_price'], model.price);
+        form.setFieldValue(['items', idx, 'amount'], Number(currentQty || 0) * Number(model.price));
       }
     }
   };
@@ -248,17 +287,34 @@ export default function Orders() {
     setFilterCompany(companyName);
   };
 
-  // 导出Excel
-  const handleExportExcel = () => {
-    if (!data || data.length === 0) {
-      message.warning('没有数据可导出');
-      return;
-    }
-
+  // 导出Excel — 服务端全量查询
+  const handleExportExcel = async () => {
+    setExportLoading(true);
     try {
-      const exportData = [];
+      // 导出时获取全量数据
+      const params = {
+        company_name: debouncedCompany,
+        country: debouncedCountry,
+        level: filterLevel,
+        continent: debouncedContinent,
+        source: debouncedSource,
+        customer_type: filterCustomerType,
+        customer_id: filterCustomerId,
+        pageSize: 999999, // 导出取全部
+      };
+      if (filterDateRange && filterDateRange[0]) {
+        params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
+        params.order_date_end = filterDateRange[1].format('YYYY-MM-DD');
+      }
+      const res = await api.get('/orders', { params });
+      const exportData = res.data || [];
+      if (!exportData.length) {
+        message.warning('没有数据可导出');
+        return;
+      }
 
-      data.forEach(order => {
+      const rows = [];
+      exportData.forEach(order => {
         const contactInfo = order.contacts?.length
           ? order.contacts.map(c => [c.name, c.email, c.phone].filter(Boolean).join('/')).join(',\n')
           : '-';
@@ -287,7 +343,7 @@ export default function Orders() {
 
         if (order.items && order.items.length > 0) {
           order.items.forEach(item => {
-            exportData.push({
+            rows.push({
               ...baseRow,
               '产品大类': item.category_name || '-',
               '产品型号': item.product_model || '-',
@@ -296,19 +352,12 @@ export default function Orders() {
             });
           });
         } else {
-          exportData.push({
-            ...baseRow,
-            '产品大类': '-',
-            '产品型号': '-',
-            '数量': '-',
-            '金额': '-',
-          });
+          rows.push({ ...baseRow, '产品大类': '-', '产品型号': '-', '数量': '-', '金额': '-' });
         }
       });
 
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
+      const ws = XLSX.utils.json_to_sheet(rows);
       const colWidths = [
         { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
         { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 },
@@ -317,7 +366,6 @@ export default function Orders() {
         { wch: 10 }, { wch: 12 }, { wch: 35 },
       ];
       ws['!cols'] = colWidths;
-
       XLSX.utils.book_append_sheet(wb, ws, '订单数据');
       const fileName = `订单数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
       XLSX.writeFile(wb, fileName);
@@ -325,6 +373,8 @@ export default function Orders() {
     } catch (err) {
       console.error('导出失败:', err);
       message.error('导出失败');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -384,39 +434,51 @@ export default function Orders() {
         </div>
         <Space size={8}>
           {filterCustomerId && <Button onClick={() => { setFilterCustomerId(''); setFilterCompany(''); }}>查看全部订单</Button>}
-          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={exportLoading}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增订单</Button>
         </Space>
       </div>
 
-      {/* Filter bar — 所有条件平铺 */}
+      {/* Filter bar — 文本输入不再 onChange 直接触发查询，仅 onSearch 或防抖触发 */}
       <div className="crm-filter-bar">
         <Input.Search
           placeholder="公司名称" allowClear style={{ width: 160 }}
           value={filterCompany}
           onSearch={v => { setFilterCustomerId(''); setFilterCompany(v); }}
-          onChange={e => { if (!e.target.value) { setFilterCustomerId(''); setFilterCompany(''); } else setFilterCompany(e.target.value); }}
+          onChange={e => {
+            const v = e.target.value;
+            if (!v) { setFilterCustomerId(''); setFilterCompany(''); }
+            else setFilterCompany(v);
+          }}
         />
         <RangePicker placeholder={['开始日期', '结束日期']} onChange={v => setFilterDateRange(v)} style={{ width: 240 }} />
-        <Input.Search placeholder="国家" allowClear style={{ width: 120 }} onSearch={v => setFilterCountry(v)} onChange={e => !e.target.value && setFilterCountry('')} />
+        <Input.Search placeholder="国家" allowClear style={{ width: 120 }} onSearch={v => setFilterCountry(v)} onChange={e => { if (!e.target.value) setFilterCountry(''); else setFilterCountry(e.target.value); }} />
         <Select placeholder="客户等级" allowClear style={{ width: 100 }} onChange={v => setFilterLevel(v || '')}>
           <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
         </Select>
-        <Input.Search placeholder="大洲" allowClear style={{ width: 120 }} onSearch={v => setFilterContinent(v)} onChange={e => !e.target.value && setFilterContinent('')} />
-        <Input.Search placeholder="客户来源" allowClear style={{ width: 120 }} onSearch={v => setFilterSource(v)} onChange={e => !e.target.value && setFilterSource('')} />
+        <Input.Search placeholder="大洲" allowClear style={{ width: 120 }} onSearch={v => setFilterContinent(v)} onChange={e => { if (!e.target.value) setFilterContinent(''); else setFilterContinent(e.target.value); }} />
+        <Input.Search placeholder="客户来源" allowClear style={{ width: 120 }} onSearch={v => setFilterSource(v)} onChange={e => { if (!e.target.value) setFilterSource(''); else setFilterSource(e.target.value); }} />
         <Select placeholder="新旧客户" allowClear style={{ width: 100 }} onChange={v => setFilterCustomerType(v || '')}>
           <Option value="新客户">新客户</Option><Option value="老客户">老客户</Option>
         </Select>
       </div>
 
-      {/* Table */}
+      {/* Table — 服务端分页 */}
       <div className="crm-table-container">
         <Table
           rowKey="id"
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total,
+            showTotal: t => `共 ${t} 条`,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+          }}
+          onChange={handleTableChange}
           size="middle"
           scroll={{ x: 1100, y: 'calc(100vh - 320px)' }}
         />
@@ -483,15 +545,8 @@ export default function Orders() {
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 100, marginBottom: 0 }}>
                         <InputNumber min={0} style={{ width: '100%' }} onChange={(newQty) => {
-                          setTimeout(() => {
-                            const items = form.getFieldValue('items') || [];
-                            const price = items[name]?.unit_price || 0;
-                            form.setFieldsValue({
-                              items: items.map((item, i) =>
-                                i === name ? { ...item, amount: Number(newQty || 0) * Number(price) } : item
-                              ),
-                            });
-                          }, 0);
+                          const price = form.getFieldValue(['items', name, 'unit_price']) || 0;
+                          form.setFieldValue(['items', name, 'amount'], Number(newQty || 0) * Number(price));
                         }} />
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'unit_price']} hidden><InputNumber /></Form.Item>
@@ -511,6 +566,7 @@ export default function Orders() {
             <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]} style={{ width: 280 }}>
               <Select
                 showSearch placeholder="请选择或搜索客户"
+                virtual
                 filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
                 onChange={(value) => {
                   const customer = customers.find(c => c.id === value);
