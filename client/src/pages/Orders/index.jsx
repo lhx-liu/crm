@@ -103,12 +103,23 @@ export default function Orders() {
       ...order,
       order_date: order.order_date ? dayjs(order.order_date) : null,
       payment_date: order.payment_date ? dayjs(order.payment_date) : null,
-      items: order.items?.length ? order.items.map(i => ({
-        model_id: i.model_id ? Number(i.model_id) : undefined,
-        category_id: i.category_id ? Number(i.category_id) : undefined,
-        quantity: i.quantity,
-        unit_price: i.unit_price
-      })) : [{}],
+      items: order.items?.length ? order.items.map(i => {
+        // 从产品表取最新价格，而非使用旧快照 unit_price
+        const latestPrice = (() => {
+          for (const cat of categories) {
+            const model = cat.models?.find(m => m.id === Number(i.model_id));
+            if (model) return model.price;
+          }
+          return i.unit_price || 0;
+        })();
+        return {
+          model_id: i.model_id ? Number(i.model_id) : undefined,
+          category_id: i.category_id ? Number(i.category_id) : undefined,
+          quantity: i.quantity,
+          unit_price: latestPrice,
+          amount: i.amount != null ? i.amount : Number(i.quantity || 0) * Number(latestPrice || 0)
+        };
+      }) : [{}],
     });
     if (order.items?.length && order.items[0].category_id) {
       setSelectedCategoryId(Number(order.items[0].category_id));
@@ -129,7 +140,7 @@ export default function Orders() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      const totalAmount = (values.items || []).reduce((sum, i) => sum + (Number(i?.quantity || 0) * Number(i?.unit_price || 0)), 0);
+      const totalAmount = (values.items || []).reduce((sum, i) => sum + Number(i?.amount || 0), 0);
       const payload = {
         ...values,
         total_amount: totalAmount,
@@ -197,7 +208,7 @@ export default function Orders() {
           const items = form.getFieldValue('items') || [];
           const idx = activeCategoryItemIdx;
           const newItems = [...items];
-          newItems[idx] = { ...newItems[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined };
+          newItems[idx] = { ...newItems[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined, amount: undefined };
           form.setFieldsValue({ items: newItems });
         }, 0);
       }
@@ -206,25 +217,26 @@ export default function Orders() {
     }
   };
 
-  const handleCategoryChange = (categoryId, itemName) => {
-    const idx = itemName[1];
+  const handleCategoryChange = (categoryId, idx) => {
     const items = form.getFieldValue('items') || [];
     const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], category_id: categoryId, model_id: undefined, unit_price: undefined };
+    newItems[idx] = { ...newItems[idx], category_id: categoryId, model_id: undefined, unit_price: undefined, amount: undefined };
     form.setFieldsValue({ items: newItems });
   };
 
-  const handleModelSelect = (modelId, itemName) => {
-    const idx = itemName[1];
+  const handleModelSelect = (modelId, idx) => {
     const currentCategoryId = form.getFieldValue(['items', idx, 'category_id']);
-    const category = categories.find(c => c.id === currentCategoryId);
+    const category = categories.find(c => String(c.id) === String(currentCategoryId));
     if (category) {
-      const model = category.models?.find(m => m.id === modelId);
+      const model = category.models?.find(m => String(m.id) === String(modelId));
       if (model) {
         const items = form.getFieldValue('items') || [];
-        const newItems = [...items];
-        newItems[idx] = { ...newItems[idx], model_id: modelId, unit_price: model.price };
-        form.setFieldsValue({ items: newItems });
+        const currentQty = items[idx]?.quantity || 0;
+        form.setFieldsValue({
+          items: items.map((item, i) =>
+            i === idx ? { ...item, unit_price: model.price, amount: Number(currentQty || 0) * Number(model.price) } : item
+          ),
+        });
       }
     }
   };
@@ -278,7 +290,7 @@ export default function Orders() {
               '产品大类': item.category_name || '-',
               '产品型号': item.product_model || '-',
               '数量': item.quantity || '-',
-              '金额': (item.unit_price && item.quantity) ? `$${Number(item.unit_price * item.quantity).toFixed(2)}` : '-',
+              '金额': item.amount != null ? `$${Number(item.amount).toFixed(2)}` : (item.unit_price && item.quantity ? `$${Number(item.unit_price * item.quantity).toFixed(2)}` : '-'),
             });
           });
         } else {
@@ -434,7 +446,7 @@ export default function Orders() {
                           filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
                           onChange={(v) => {
                             setSelectedCategoryId(v);
-                            handleCategoryChange(v, [name]);
+                            handleCategoryChange(v, name);
                           }}
                           dropdownRender={menu => (
                             <>
@@ -451,6 +463,7 @@ export default function Orders() {
                         <Select
                           showSearch
                           placeholder="选择型号"
+                          onChange={(v) => handleModelSelect(v, name)}
                           filterOption={(input, option) => {
                             const text = Array.isArray(option.children) ? option.children.join('') : (option.children || '');
                             return text.toLowerCase().includes(input.toLowerCase());
@@ -467,23 +480,21 @@ export default function Orders() {
                         </Select>
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 100, marginBottom: 0 }}>
-                        <InputNumber min={0} style={{ width: '100%' }} />
+                        <InputNumber min={0} style={{ width: '100%' }} onChange={(newQty) => {
+                          setTimeout(() => {
+                            const items = form.getFieldValue('items') || [];
+                            const price = items[name]?.unit_price || 0;
+                            form.setFieldsValue({
+                              items: items.map((item, i) =>
+                                i === name ? { ...item, amount: Number(newQty || 0) * Number(price) } : item
+                              ),
+                            });
+                          }, 0);
+                        }} />
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'unit_price']} hidden><InputNumber /></Form.Item>
-                      <Form.Item noStyle shouldUpdate={(prev, cur) => {
-                        const prevItem = prev.items?.[name];
-                        const curItem = cur.items?.[name];
-                        return prevItem?.quantity !== curItem?.quantity || prevItem?.unit_price !== curItem?.unit_price;
-                      }}>
-                        {({ getFieldValue }) => {
-                          const qty = getFieldValue(['items', name, 'quantity']) || 0;
-                          const price = getFieldValue(['items', name, 'unit_price']) || 0;
-                          return (
-                            <Form.Item label="金额($)" style={{ width: 130, marginBottom: 0 }}>
-                              <InputNumber value={Number(qty) * Number(price)} disabled precision={2} style={{ width: '100%' }} prefix="$" />
-                            </Form.Item>
-                          );
-                        }}
+                      <Form.Item {...restField} name={[name, 'amount']} label="金额($)" style={{ width: 130, marginBottom: 0 }}>
+                        <InputNumber min={0} precision={2} style={{ width: '100%' }} prefix="$" />
                       </Form.Item>
                     </Space>
                   </Card>
@@ -601,7 +612,7 @@ export default function Orders() {
                 { title: '产品大类', dataIndex: 'category_name' },
                 { title: '型号', dataIndex: 'product_model' },
                 { title: '数量', dataIndex: 'quantity' },
-                { title: '金额', render: (_, r) => `$${Number((r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}` },
+                { title: '金额', render: (_, r) => `$${Number(r.amount != null ? r.amount : (r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}` },
               ]}
             />
           </>

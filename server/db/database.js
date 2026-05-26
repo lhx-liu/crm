@@ -139,6 +139,7 @@ async function createTables() {
         model_id INT NOT NULL,
         quantity DOUBLE DEFAULT 1,
         unit_price DOUBLE DEFAULT 0,
+        amount DOUBLE DEFAULT 0 COMMENT '实际金额(可手动修改)',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (order_id) REFERENCES orders(id),
         FOREIGN KEY (model_id) REFERENCES product_models(id)
@@ -176,6 +177,16 @@ async function createTables() {
       if (cols.length === 0) {
         await conn.execute("ALTER TABLE customers ADD COLUMN lead_no VARCHAR(255) NOT NULL DEFAULT '' AFTER company_name");
       }
+    } catch (e) { /* 忽略 */ }
+
+    // 兼容旧表：添加 order_items.amount 列（如果不存在）+ 回填老数据
+    try {
+      const [cols] = await conn.execute("SHOW COLUMNS FROM order_items LIKE 'amount'");
+      if (cols.length === 0) {
+        await conn.execute("ALTER TABLE order_items ADD COLUMN amount DOUBLE DEFAULT 0 COMMENT '实际金额(可手动修改)'");
+      }
+      // 回填老数据：amount = quantity * unit_price（对 amount=0 的行执行，避免覆盖已修改的值）
+      await conn.execute("UPDATE order_items SET amount = IFNULL(quantity, 0) * IFNULL(unit_price, 0) WHERE amount = 0");
     } catch (e) { /* 忽略 */ }
 
   } finally {

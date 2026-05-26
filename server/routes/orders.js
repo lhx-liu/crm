@@ -104,6 +104,18 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// 辅助函数：从产品表批量获取最新价格
+async function getLatestPrices(db, modelIds) {
+  if (!modelIds.length) return {};
+  const [rows] = await db.execute(
+    `SELECT id, price FROM product_models WHERE id IN (${modelIds.map(() => '?').join(',')})`,
+    modelIds
+  );
+  const map = {};
+  for (const row of rows) map[row.id] = row.price;
+  return map;
+}
+
 // 新增订单
 router.post('/', async (req, res) => {
   try {
@@ -117,8 +129,13 @@ router.post('/', async (req, res) => {
     );
 
     if (items && items.length > 0) {
+      // 从产品表取最新价格，而非使用前端传入的旧快照
+      const modelIds = [...new Set(items.map(i => i.model_id).filter(Boolean))];
+      const priceMap = await getLatestPrices(db, modelIds);
+
       for (const item of items) {
-        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [result.insertId, item.model_id, item.quantity || 1, item.unit_price || 0]);
+        const latestPrice = priceMap[item.model_id] != null ? priceMap[item.model_id] : (item.unit_price || 0);
+        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price, amount) VALUES (?,?,?,?,?)', [result.insertId, item.model_id, item.quantity || 1, latestPrice, item.amount || 0]);
       }
     }
 
@@ -142,8 +159,13 @@ router.put('/:id', async (req, res) => {
 
     await db.execute('DELETE FROM order_items WHERE order_id = ?', [id]);
     if (items && items.length > 0) {
+      // 从产品表取最新价格，而非使用前端传入的旧快照
+      const modelIds = [...new Set(items.map(i => i.model_id).filter(Boolean))];
+      const priceMap = await getLatestPrices(db, modelIds);
+
       for (const item of items) {
-        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price) VALUES (?,?,?,?)', [id, item.model_id, item.quantity || 1, item.unit_price || 0]);
+        const latestPrice = priceMap[item.model_id] != null ? priceMap[item.model_id] : (item.unit_price || 0);
+        await db.execute('INSERT INTO order_items (order_id, model_id, quantity, unit_price, amount) VALUES (?,?,?,?,?)', [id, item.model_id, item.quantity || 1, latestPrice, item.amount || 0]);
       }
     }
     res.json({ success: true, data: await getOrderWithItems(db, Number(id)) });
