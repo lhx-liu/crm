@@ -11,6 +11,7 @@ import api from '../../api';
 
 const { Option } = Select;
 
+const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function Customers() {
@@ -134,7 +135,7 @@ export default function Customers() {
     },
     {
       title: '等级', dataIndex: 'level', key: 'level', width: 70, align: 'center',
-      render: v => v ? <Tag className="crm-tag" color={LEVEL_COLOR[v]}>{v}</Tag> : '-'
+      render: v => v ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[v] || ''}`}>{v}</Tag> : '-'
     },
     { title: '国家', dataIndex: 'country', key: 'country', width: 100 },
     { title: '大洲', dataIndex: 'continent', key: 'continent', width: 90 },
@@ -204,7 +205,7 @@ export default function Customers() {
             <Descriptions title="基本信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
               <Descriptions.Item label="公司名称">{detailRecord.company_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag color={LEVEL_COLOR[detailRecord.level]}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[detailRecord.level] || ''}`}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户性质">{detailRecord.nature || '-'}</Descriptions.Item>

@@ -10,6 +10,9 @@ import api from '../../api';
 
 const { Title, Text } = Typography;
 
+const CHART_COLORS = ['#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
+
 export default function AnalysisDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -46,9 +49,10 @@ export default function AnalysisDetail() {
 
   const freqOption = {
     tooltip: { trigger: 'axis' },
+    color: CHART_COLORS,
     xAxis: { type: 'category', data: (frequency?.monthly || []).map(d => d.month) },
     yAxis: { type: 'value', minInterval: 1 },
-    series: [{ name: '下单次数', type: 'bar', data: (frequency?.monthly || []).map(d => d.count), itemStyle: { color: '#52c41a' } }]
+    series: [{ name: '下单次数', type: 'bar', data: (frequency?.monthly || []).map(d => d.count), itemStyle: { color: CHART_COLORS[0], borderRadius: [4, 4, 0, 0] } }]
   };
 
   const productColumns = [
@@ -56,22 +60,22 @@ export default function AnalysisDetail() {
     { title: '购买次数', dataIndex: 'purchase_count', key: 'purchase_count', sorter: (a, b) => a.purchase_count - b.purchase_count },
     { title: '购买总量', dataIndex: 'total_quantity', key: 'total_quantity', sorter: (a, b) => a.total_quantity - b.total_quantity },
     { title: '购买总金额', dataIndex: 'total_amount', key: 'total_amount', sorter: (a, b) => a.total_amount - b.total_amount,
-      render: v => `$${Number(v || 0).toFixed(2)}`
+      render: v => <span className="crm-money">${Number(v || 0).toFixed(2)}</span>
     },
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: '20px 0' }} className="crm-page-enter">
       <div style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/analysis')}>返回客户列表</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/analysis')} style={{ color: 'var(--crm-primary)' }}>返回客户列表</Button>
       </div>
 
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16, borderRadius: 'var(--crm-radius-lg)', boxShadow: 'var(--crm-shadow-md)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div>
-            <Title level={4} style={{ margin: 0 }}>{customer?.company_name}</Title>
+            <Title level={4} style={{ margin: 0, color: 'var(--crm-text-primary)' }}>{customer?.company_name}</Title>
             <Text type="secondary">{customer?.country} · {customer?.continent}</Text>
-            {customer?.level && <Tag color={{ A: 'red', B: 'orange', C: 'blue' }[customer.level]} style={{ marginLeft: 8 }}>{customer.level}级客户</Tag>}
+            {customer?.level && <Tag className={`crm-tag ${LEVEL_TAG_CLASS[customer.level] || ''}`} style={{ marginLeft: 8 }}>{customer.level}级客户</Tag>}
           </div>
         </div>
       </Card>
@@ -79,73 +83,73 @@ export default function AnalysisDetail() {
       <Row gutter={[16, 16]}>
         {/* 下单频率统计卡片 */}
         <Col xs={24} sm={8}>
-          <Card>
+          <div className="crm-stat-card">
             <Statistic
               title="总订单数"
               value={frequency?.totalOrders || 0}
               suffix="单"
               prefix={<ShoppingCartOutlined />}
-              valueStyle={{ color: '#1677ff' }}
+              valueStyle={{ color: 'var(--crm-primary)', fontFamily: 'var(--crm-font-mono)' }}
             />
-          </Card>
+          </div>
         </Col>
         <Col xs={24} sm={8}>
-          <Card>
+          <div className="crm-stat-card">
             <Statistic
               title="平均下单间隔"
               value={frequency?.avgDays != null ? frequency.avgDays : '-'}
               suffix={frequency?.avgDays != null ? '天/次' : ''}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: 'var(--crm-success)', fontFamily: 'var(--crm-font-mono)' }}
             />
-          </Card>
+          </div>
         </Col>
         <Col xs={24} sm={8}>
-          <Card>
+          <div className="crm-stat-card">
             <Statistic
               title="活跃月份数"
               value={(frequency?.monthly || []).length}
               suffix="个月"
-              valueStyle={{ color: '#faad14' }}
+              valueStyle={{ color: 'var(--crm-warning)', fontFamily: 'var(--crm-font-mono)' }}
             />
-          </Card>
+          </div>
         </Col>
 
         {/* 每月下单次数柱状图 */}
         <Col span={24}>
-          <Card title="每月下单次数">
+          <Card title="每月下单次数" className="crm-chart-card">
             {frequency?.monthly?.length > 0
               ? <ReactECharts option={freqOption} style={{ height: 280 }} />
-              : <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无下单记录</div>
+              : <div className="crm-empty-state">暂无下单记录</div>
             }
           </Card>
         </Col>
 
         {/* 偏向产品 */}
         <Col span={24}>
-          <Card title="偏向产品">
+          <Card title="偏向产品" className="crm-chart-card">
             <Table rowKey="id" columns={productColumns} dataSource={products} pagination={false} bordered size="middle" />
           </Card>
         </Col>
 
         {/* 下单时间轴 */}
         <Col span={24}>
-          <Card title="下单时间轴">
+          <Card title="下单时间轴" className="crm-chart-card">
             {timeline.length > 0 ? (
               <Timeline mode="left">
                 {timeline.map(order => (
-                  <Timeline.Item key={order.id} label={<Text strong>{order.order_date || '未知日期'}</Text>} dot={<ShoppingCartOutlined style={{ fontSize: 16 }} />}>
+                  <Timeline.Item key={order.id} label={<Text strong>{order.order_date || '未知日期'}</Text>} dot={<ShoppingCartOutlined style={{ fontSize: 16, color: 'var(--crm-primary)' }} />}>
                     <Card size="small" style={{ maxWidth: 500 }}>
                       <div style={{ marginBottom: 8 }}>
                         <Text strong>到款金额：</Text>
-                        <Text style={{ color: '#1677ff' }}>${Number(order.payment_amount || 0).toFixed(2)}</Text>
+                        <Text style={{ color: 'var(--crm-primary)', fontFamily: 'var(--crm-font-mono)', fontWeight: 600 }}>${Number(order.payment_amount || 0).toFixed(2)}</Text>
                       </div>
                       <Divider style={{ margin: '8px 0' }} />
                       <div>
                         <Text strong>产品列表：</Text>
                         {order.items?.length > 0 ? (
                           order.items.map((item, i) => (
-                            <Tag key={i} style={{ margin: '4px 4px 0 0' }}>
+                            <Tag key={i} style={{ margin: '4px 4px 0 0', borderRadius: 6 }}>
                               {item.category_name}({item.product_model}) × {item.quantity}
                             </Tag>
                           ))
@@ -156,7 +160,7 @@ export default function AnalysisDetail() {
                 ))}
               </Timeline>
             ) : (
-              <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无订单记录</div>
+              <div style={{ textAlign: 'center', color: 'var(--crm-text-muted)', padding: 40 }}>暂无订单记录</div>
             )}
           </Card>
         </Col>

@@ -6,7 +6,8 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import {
   ShopOutlined, TeamOutlined, FileTextOutlined,
-  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined
+  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined,
+  BellOutlined
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './AuthContext';
 import Login from './pages/Login';
@@ -84,12 +85,24 @@ function AppLayout() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         theme="dark"
-        width={200}
+        width={220}
+        className="crm-sider"
         style={{ position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 100 }}
       >
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          {!collapsed && <Title level={5} style={{ color: '#fff', margin: 0 }}>CRM 系统</Title>}
-          {collapsed && <Title level={5} style={{ color: '#fff', margin: 0, textAlign: 'center' }}>C</Title>}
+        <div className="crm-sider-logo">
+          {!collapsed ? (
+            <div className="crm-sider-logo-expanded">
+              <div className="crm-sider-logo-icon">C</div>
+              <div className="crm-sider-logo-text">
+                <h1>CRM</h1>
+                <p>客户管理系统</p>
+              </div>
+            </div>
+          ) : (
+            <div className="crm-sider-logo-collapsed">
+              <div className="crm-sider-logo-icon">C</div>
+            </div>
+          )}
         </div>
         <Menu
           theme="dark"
@@ -97,29 +110,23 @@ function AppLayout() {
           selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, borderRight: 'none' }}
         />
+        {!collapsed && <div className="crm-sider-version">v2.0</div>}
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s' }}>
-        <Header style={{
-          background: '#fff',
-          padding: '0 24px',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-        }}>
-          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#667eea' }} />
-              <Text>{user?.username || '用户'}</Text>
-            </div>
-          </Dropdown>
+      <Layout style={{ marginLeft: collapsed ? 80 : 220, transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <Header className="crm-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <BellOutlined style={{ fontSize: 18, color: 'var(--crm-text-muted)', cursor: 'pointer' }} />
+            <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} className="crm-avatar" />
+                <Text>{user?.username || '用户'}</Text>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
-        <Content style={{ background: '#f5f6fa', minHeight: 'calc(100vh - 64px)', padding: '16px', overflow: 'hidden' }}>
+        <Content className="crm-content">
           <Routes>
             <Route path="/" element={<Orders />} />
             <Route path="/products" element={<Products />} />
@@ -138,7 +145,42 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        token: {
+          colorPrimary: '#0d9488',
+          colorInfo: '#0d9488',
+          colorSuccess: '#10b981',
+          colorWarning: '#f59e0b',
+          colorError: '#ef4444',
+          borderRadius: 10,
+          fontFamily: '"Noto Sans SC", "DM Sans", sans-serif',
+          colorBgContainer: '#ffffff',
+          colorBorder: '#e2e8f0',
+        },
+        components: {
+          Menu: {
+            darkItemBg: 'transparent',
+            darkItemSelectedBg: 'rgba(13, 148, 136, 0.15)',
+            darkItemSelectedColor: '#0d9488',
+            darkItemHoverBg: 'rgba(255, 255, 255, 0.04)',
+          },
+          Layout: {
+            siderBg: '#0f172a',
+          },
+          Button: {
+            primaryShadow: '0 2px 0 rgba(13, 148, 136, 0.1)',
+          },
+          Modal: {
+            borderRadiusLG: 12,
+          },
+          Card: {
+            borderRadiusLG: 12,
+          },
+        },
+      }}
+    >
       <BrowserRouter>
         <AuthProvider>
           <Routes>

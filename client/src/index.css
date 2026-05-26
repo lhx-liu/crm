@@ -1,13 +1,220 @@
+/* ============================================
+   CRM 客户管理系统 — 深海商务风格
+   全局基础样式 & CSS 变量
+   ============================================ */
+
+:root {
+  /* 品牌色 */
+  --crm-primary: #0d9488;
+  --crm-primary-hover: #0f766e;
+  --crm-primary-active: #115e59;
+  --crm-primary-light: #ccfbf1;
+  --crm-primary-bg: #f0fdfa;
+
+  /* 中性色 */
+  --crm-text-primary: #0f172a;
+  --crm-text-secondary: #1e293b;
+  --crm-text-body: #334155;
+  --crm-text-muted: #64748b;
+  --crm-text-placeholder: #94a3b8;
+
+  --crm-border: #e2e8f0;
+  --crm-border-light: #f1f5f9;
+  --crm-bg-page: #f0fdfa;
+  --crm-bg-card: #ffffff;
+  --crm-bg-dark: #0f172a;
+
+  /* 语义色 */
+  --crm-success: #10b981;
+  --crm-warning: #f59e0b;
+  --crm-danger: #ef4444;
+  --crm-info: #0d9488;
+
+  /* 阴影 */
+  --crm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --crm-shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+  --crm-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.04);
+
+  /* 圆角 */
+  --crm-radius-sm: 6px;
+  --crm-radius-md: 10px;
+  --crm-radius-lg: 12px;
+  --crm-radius-xl: 16px;
+
+  /* 字体 — 使用系统字体，无需外部 CDN */
+  --crm-font-display: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --crm-font-body: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  --crm-font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", "PingFang SC", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--crm-font-body);
+  background: var(--crm-bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--crm-text-body);
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: var(--crm-font-mono);
+}
+
+/* ============================================
+   全局 Antd 主题覆盖（CSS 层面）
+   ============================================ */
+
+/* 主按钮品牌色 */
+.ant-btn-primary {
+  background: var(--crm-primary) !important;
+  border-color: var(--crm-primary) !important;
+}
+.ant-btn-primary:hover {
+  background: var(--crm-primary-hover) !important;
+  border-color: var(--crm-primary-hover) !important;
+}
+.ant-btn-primary:active {
+  background: var(--crm-primary-active) !important;
+  border-color: var(--crm-primary-active) !important;
+}
+
+/* default 按钮品牌色边框 */
+.ant-btn-default {
+  border-color: var(--crm-primary) !important;
+  color: var(--crm-primary) !important;
+}
+.ant-btn-default:hover {
+  border-color: var(--crm-primary-hover) !important;
+  color: var(--crm-primary-hover) !important;
+}
+
+/* Link 按钮品牌色 */
+.ant-btn-link {
+  color: var(--crm-primary) !important;
+}
+
+/* 选中态 checkbox/radio/switch */
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--crm-primary) !important;
+  border-color: var(--crm-primary) !important;
+}
+.ant-radio-checked .ant-radio-inner {
+  border-color: var(--crm-primary) !important;
+}
+.ant-radio-checked .ant-radio-inner::after {
+  background-color: var(--crm-primary) !important;
+}
+.ant-switch-checked {
+  background-color: var(--crm-primary) !important;
+}
+
+/* 分页器选中 */
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--crm-primary) !important;
+}
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--crm-primary) !important;
+}
+
+/* Tabs 下划线 */
+.ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--crm-primary) !important;
+}
+.ant-tabs .ant-tabs-ink-bar {
+  background: var(--crm-primary) !important;
+}
+
+/* Modal 顶部装饰条 */
+.ant-modal .ant-modal-content {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--crm-radius-lg) !important;
+}
+.ant-modal .ant-modal-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--crm-primary), var(--crm-primary-hover));
+  z-index: 1;
+}
+
+/* Modal 标题左侧品牌色竖线 */
+.ant-modal .ant-modal-header {
+  position: relative;
+  padding-left: 18px;
+}
+.ant-modal .ant-modal-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--crm-primary);
+  border-radius: 2px;
+}
+
+/* Drawer 标题左侧品牌色竖线 */
+.ant-drawer .ant-drawer-header {
+  position: relative;
+  padding-left: 18px;
+}
+.ant-drawer .ant-drawer-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--crm-primary);
+  border-radius: 2px;
+}
+
+/* 页面切换动画 */
+.crm-page-enter {
+  animation: crm-fade-in-up 0.3s ease-out;
+}
+
+@keyframes crm-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal 动画 */
+@keyframes crm-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 登录页浮动 */
+@keyframes crm-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+/* 登录页旋转 */
+@keyframes crm-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

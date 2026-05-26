@@ -4,6 +4,7 @@ import { UserOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
+const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function AnalysisList() {
@@ -32,8 +33,9 @@ export default function AnalysisList() {
       render: (_, __, index) => (
         <span style={{
           fontWeight: 700,
-          color: index < 3 ? '#2563eb' : '#94a3b8',
+          color: index < 3 ? 'var(--crm-primary)' : 'var(--crm-text-placeholder)',
           fontSize: index < 3 ? 15 : 13,
+          fontFamily: index < 3 ? 'var(--crm-font-mono)' : 'inherit',
         }}>{index + 1}</span>
       )
     },
@@ -41,21 +43,21 @@ export default function AnalysisList() {
       title: '客户', key: 'customer',
       render: (_, r) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar icon={<UserOutlined />} size={36} style={{ backgroundColor: '#6366f1', flexShrink: 0 }} />
+          <Avatar icon={<UserOutlined />} size={36} style={{ backgroundColor: 'var(--crm-primary)', flexShrink: 0 }} />
           <div>
-            <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.company_name}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>{r.country || '-'} · {r.continent || '-'}</div>
+            <div style={{ fontWeight: 600, color: 'var(--crm-text-secondary)' }}>{r.company_name}</div>
+            <div style={{ fontSize: 12, color: 'var(--crm-text-placeholder)' }}>{r.country || '-'} · {r.continent || '-'}</div>
           </div>
         </div>
       )
     },
     {
       title: '等级', dataIndex: 'level', key: 'level', width: 70, align: 'center',
-      render: v => v ? <Tag className="crm-tag" color={LEVEL_COLOR[v]}>{v}</Tag> : '-'
+      render: v => v ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[v] || ''}`}>{v}</Tag> : '-'
     },
     {
       title: '订单数', dataIndex: 'order_count', key: 'order_count', width: 90, align: 'center',
-      render: v => <span style={{ fontWeight: 600, color: '#334155' }}>{v || 0}</span>
+      render: v => <span style={{ fontWeight: 600, color: 'var(--crm-text-body)', fontFamily: 'var(--crm-font-mono)' }}>{v || 0}</span>
     },
     {
       title: '到款总金额', dataIndex: 'total_payment', key: 'total_payment', width: 140, align: 'right',

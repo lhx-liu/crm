@@ -17,6 +17,8 @@ const { Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
+const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
+
 export default function Orders() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -564,7 +566,7 @@ export default function Orders() {
             <Descriptions title="客户信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
               <Descriptions.Item label="公司名称">{detailRecord.company_name}</Descriptions.Item>
               <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag color={{ A: 'red', B: 'orange', C: 'blue' }[detailRecord.level]}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[detailRecord.level] || ''}`}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户来源">{detailRecord.source || '-'}</Descriptions.Item>
@@ -597,7 +599,7 @@ export default function Orders() {
               <Descriptions.Item label="订单日期">{detailRecord.order_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="到款日期">{detailRecord.payment_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="请购单号">{detailRecord.purchase_order_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: '#1677ff' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
+              <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: 'var(--crm-primary)', fontFamily: 'var(--crm-font-mono)' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
               <Descriptions.Item label="发票金额">{detailRecord.invoice_amount ? `$${Number(detailRecord.invoice_amount).toFixed(2)}` : '-'}</Descriptions.Item>
               <Descriptions.Item label="EXW货值">{detailRecord.exw_value ? `$${Number(detailRecord.exw_value).toFixed(2)}` : '-'}</Descriptions.Item>
             </Descriptions>
@@ -612,7 +614,7 @@ export default function Orders() {
                 { title: '产品大类', dataIndex: 'category_name' },
                 { title: '型号', dataIndex: 'product_model' },
                 { title: '数量', dataIndex: 'quantity' },
-                { title: '金额', render: (_, r) => `$${Number(r.amount != null ? r.amount : (r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}` },
+                { title: '金额', render: (_, r) => <span className="crm-money">${Number(r.amount != null ? r.amount : (r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}</span> },
               ]}
             />
           </>
