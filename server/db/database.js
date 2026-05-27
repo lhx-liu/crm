@@ -47,6 +47,22 @@ async function initDb() {
   // 创建连接池
   pool = mysql.createPool(DB_CONFIG);
 
+  // M9: 监听连接池错误，防止未处理的连接错误导致进程崩溃
+  pool.on('connection', (connection) => {
+    connection.on('error', (err) => {
+      console.error('⚠️ MySQL 连接错误:', err.message);
+    });
+  });
+
+  // 验证连接池可用
+  try {
+    const conn = await pool.getConnection();
+    conn.release();
+  } catch (err) {
+    console.error('❌ 数据库连接池初始化失败:', err.message);
+    throw err;
+  }
+
   // 建表
   await createTables();
 
@@ -197,14 +213,28 @@ async function createTables() {
 async function createDefaultAdmin() {
   const [rows] = await pool.execute("SELECT COUNT(*) as cnt FROM users WHERE username = 'admin'");
   if (rows[0].cnt === 0) {
-    const hashedPassword = bcrypt.hashSync('admin123', 10);
+    // M4: 默认密码从环境变量读取，未设置时生成随机密码
+    const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD || generateRandomPassword(12);
+    const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
     await pool.execute(
       "INSERT INTO users (username, password, role, must_change_password) VALUES ('admin', ?, 'admin', 1)",
       [hashedPassword]
     );
-    console.log('✅ 已创建默认管理员账户: admin / admin123');
+    console.log('✅ 已创建默认管理员账户: admin / ' + defaultPassword);
     console.log('⚠️  请登录后立即修改默认密码！');
+    if (!process.env.ADMIN_DEFAULT_PASSWORD) {
+      console.log('💡 提示: 可通过 ADMIN_DEFAULT_PASSWORD 环境变量指定初始密码，否则每次随机生成');
+    }
   }
+}
+
+function generateRandomPassword(length) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  let pwd = '';
+  for (let i = 0; i < length; i++) {
+    pwd += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pwd;
 }
 
 module.exports = { getPool, initDb };

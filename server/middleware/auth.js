@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ JWT_SECRET 环境变量未设置，无法启动');
+  process.exit(1);
+}
 const JWT_EXPIRES_IN = '24h';
 
 /**

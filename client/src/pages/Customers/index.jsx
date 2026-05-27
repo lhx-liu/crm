@@ -8,21 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import api from '../../api';
+import useDebounce from '../../hooks/useDebounce';
 
 const { Option } = Select;
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
-
-// 简易防抖 hook
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 export default function Customers() {
   const [data, setData] = useState([]);
@@ -52,17 +43,33 @@ export default function Customers() {
       const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, page, pageSize } });
       setData(res.data || []);
       setTotal(res.total ?? (res.data || []).length);
-    } catch {
+    } catch (err) {
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
       message.error('获取客户列表失败');
     } finally {
       setLoading(false);
     }
   }, [debouncedSearch, levelFilter, debouncedCountry, pagination.current, pagination.pageSize]);
 
-  // 筛选变化时重置到第1页
+  // 筛选变化时重置到第1页（I5: AbortController 防竞态）
   useEffect(() => {
+    const controller = new AbortController();
     setPagination(prev => ({ ...prev, current: 1 }));
-    fetchData(1, pagination.pageSize);
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, page: 1, pageSize: pagination.pageSize }, signal: controller.signal });
+        setData(res.data || []);
+        setTotal(res.total ?? (res.data || []).length);
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        message.error('获取客户列表失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    doFetch();
+    return () => controller.abort();
   }, [debouncedSearch, levelFilter, debouncedCountry]);
 
   // 分页变化查询
@@ -115,7 +122,7 @@ export default function Customers() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, pageSize: 999999 } });
+      const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, export: 'true', pageSize: 100000 } });
       const exportData = (res.data || []).map(c => {
         const contactInfo = c.contacts?.length
           ? c.contacts.map(ct => [ct.name, ct.email, ct.phone].filter(Boolean).join('/')).join(',\n')
@@ -177,7 +184,7 @@ export default function Customers() {
     {
       title: '联系人', key: 'contacts', width: 120,
       render: (_, r) => r.contacts?.length
-        ? r.contacts.map((c, i) => <div key={i} style={{ lineHeight: 1.6, fontSize: 13 }}>{c.name || '-'}</div>)
+        ? r.contacts.map((c) => <div key={c.id || c.name} style={{ lineHeight: 1.6, fontSize: 13 }}>{c.name || '-'}</div>)
         : <span style={{ color: '#cbd5e1' }}>-</span>
     },
     {
@@ -257,7 +264,7 @@ export default function Customers() {
               <>
                 <Divider>联系人信息</Divider>
                 <Table
-                  rowKey={(r, i) => i}
+                  rowKey="id"
                   size="small"
                   pagination={false}
                   dataSource={detailRecord.contacts}

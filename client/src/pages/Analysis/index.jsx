@@ -3,29 +3,61 @@ import { Table, Input, Typography, Avatar, Tag, message } from 'antd';
 import { UserOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import useDebounce from '../../hooks/useDebounce';
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function AnalysisList() {
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 400);
   const navigate = useNavigate();
 
-  const fetchData = useCallback(async () => {
+  // I9: 服务端分页
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 50 });
+
+  const fetchData = useCallback(async (page = pagination.current, pageSize = pagination.pageSize) => {
     setLoading(true);
     try {
-      const res = await api.get('/analysis/list', { params: { search } });
+      const res = await api.get('/analysis/list', { params: { search: debouncedSearch, page, pageSize } });
       setData(res.data || []);
-    } catch {
+      setTotal(res.total ?? (res.data || []).length);
+    } catch (err) {
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
       message.error('获取客户列表失败');
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [debouncedSearch, pagination.current, pagination.pageSize]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/analysis/list', { params: { search: debouncedSearch, page: 1, pageSize: pagination.pageSize }, signal: controller.signal });
+        setData(res.data || []);
+        setTotal(res.total ?? (res.data || []).length);
+        setPagination(prev => ({ ...prev, current: 1 }));
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        message.error('获取客户列表失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    doFetch();
+    return () => controller.abort();
+  }, [debouncedSearch]);
+
+  const handleTableChange = (pag) => {
+    const { current, pageSize } = pag;
+    setPagination({ current, pageSize });
+    fetchData(current, pageSize);
+  };
 
   const columns = [
     {
@@ -36,7 +68,7 @@ export default function AnalysisList() {
           color: index < 3 ? 'var(--crm-primary)' : 'var(--crm-text-placeholder)',
           fontSize: index < 3 ? 15 : 13,
           fontFamily: index < 3 ? 'var(--crm-font-mono)' : 'inherit',
-        }}>{index + 1}</span>
+        }}>{(pagination.current - 1) * pagination.pageSize + index + 1}</span>
       )
     },
     {
@@ -86,19 +118,28 @@ export default function AnalysisList() {
           placeholder="搜索公司名称"
           allowClear
           style={{ width: 260 }}
+          value={search}
           onSearch={v => setSearch(v)}
-          onChange={e => !e.target.value && setSearch('')}
+          onChange={e => { if (!e.target.value) setSearch(''); else setSearch(e.target.value); }}
         />
       </div>
 
-      {/* Table */}
+      {/* Table — I9: 服务端分页 */}
       <div className="crm-table-container">
         <Table
           rowKey="id"
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 位客户`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total,
+            showTotal: t => `共 ${t} 位客户`,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+          }}
+          onChange={handleTableChange}
           size="middle"
           scroll={{ y: 'calc(100vh - 300px)' }}
           onRow={r => ({ style: { cursor: 'pointer' }, onClick: () => navigate(`/analysis/${r.id}`) })}

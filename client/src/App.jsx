@@ -10,6 +10,7 @@ import {
   BellOutlined
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Products from './pages/Products';
 import Customers from './pages/Customers';
@@ -182,16 +183,18 @@ export default function App() {
       }}
     >
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/*" element={
-              <PrivateRoute>
-                <AppLayout />
-              </PrivateRoute>
-            } />
-          </Routes>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/*" element={
+                <PrivateRoute>
+                  <AppLayout />
+                </PrivateRoute>
+              } />
+            </Routes>
+          </AuthProvider>
+        </ErrorBoundary>
       </BrowserRouter>
     </ConfigProvider>
   );

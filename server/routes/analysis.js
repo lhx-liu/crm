@@ -2,27 +2,43 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../db/database');
 
-// 客户分析列表（按到款金额排序）
+// I1: 生产环境错误信息脱敏
+const safeMsg = (err) => process.env.NODE_ENV === 'production' ? '服务器内部错误' : err.message;
+
+// 客户分析列表（按到款金额排序，I9: 支持服务端分页）
 router.get('/list', async (req, res) => {
   try {
     const db = getPool();
     const { search } = req.query;
-    let sql = `
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+
+    let whereSql = ' WHERE 1=1';
+    const params = [];
+    if (search) { whereSql += ' AND c.company_name LIKE ?'; params.push(`%${search}%`); }
+
+    // 查总数
+    const countSql = `SELECT COUNT(*) as cnt FROM customers c${whereSql}`;
+    const [countRows] = await db.execute(countSql, params);
+    const total = countRows[0].cnt;
+
+    // 分页查询
+    const offset = (page - 1) * pageSize;
+    const dataSql = `
       SELECT c.id, c.company_name, c.level, c.country, c.continent,
         COALESCE(SUM(o.payment_amount), 0) as total_payment,
         COUNT(o.id) as order_count
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-      WHERE 1=1
+      ${whereSql}
+      GROUP BY c.id ORDER BY total_payment DESC
+      LIMIT ${pageSize} OFFSET ${offset}
     `;
-    const params = [];
-    if (search) { sql += ' AND c.company_name LIKE ?'; params.push(`%${search}%`); }
-    sql += ' GROUP BY c.id ORDER BY total_payment DESC';
-
-    const [rows] = await db.execute(sql, params);
-    res.json({ success: true, data: rows });
+    const [rows] = await db.execute(dataSql, params);
+    res.json({ success: true, data: rows, total, page, pageSize });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Analysis list error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -54,7 +70,8 @@ router.get('/:id/frequency', async (req, res) => {
 
     res.json({ success: true, data: { monthly, avgDays, totalOrders: dates.length } });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Frequency error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -78,7 +95,8 @@ router.get('/:id/products', async (req, res) => {
     `, [id]);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Products analysis error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -110,7 +128,8 @@ router.get('/:id/timeline', async (req, res) => {
 
     res.json({ success: true, data: orders });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Timeline error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 

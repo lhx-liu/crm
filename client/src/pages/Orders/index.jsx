@@ -12,6 +12,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import api from '../../api';
+import useDebounce from '../../hooks/useDebounce';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -19,21 +20,14 @@ const { RangePicker } = DatePicker;
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 
-// 简易防抖 hook
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
 export default function Orders() {
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  // M3: 客户下拉改为远程搜索，不再全量加载
   const [customers, setCustomers] = useState([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerFetching, setCustomerFetching] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -73,19 +67,34 @@ export default function Orders() {
   // 导出用全量数据标记
   const [exportLoading, setExportLoading] = useState(false);
 
-  // 客户/产品数据只 mount 时加载一次
+  // 产品数据只 mount 时加载一次（客户改为按需搜索，不再全量加载）
   useEffect(() => {
-    const fetchRef = async () => {
-      const res = await api.get('/customers');
-      setCustomers(res.data || []);
-    };
+    const controller = new AbortController();
     const fetchCat = async () => {
-      const res = await api.get('/products/categories-with-models');
+      const res = await api.get('/products/categories-with-models', { signal: controller.signal });
       setCategories(res.data || []);
     };
-    fetchRef();
     fetchCat();
+    return () => controller.abort();
   }, []);
+
+  // M3: 客户远程搜索（防抖）
+  const debouncedCustomerSearch = useDebounce(customerSearch, 400);
+  useEffect(() => {
+    if (!debouncedCustomerSearch) {
+      setCustomers([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCustomerFetching(true);
+    api.get('/customers', { params: { search: debouncedCustomerSearch, pageSize: 20 }, signal: controller.signal })
+      .then(res => setCustomers(res.data || []))
+      .catch(err => {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+      })
+      .finally(() => setCustomerFetching(false));
+    return () => controller.abort();
+  }, [debouncedCustomerSearch]);
 
   // 服务端分页查询
   const fetchData = useCallback(async (page = pagination.current, pageSize = pagination.pageSize) => {
@@ -109,17 +118,49 @@ export default function Orders() {
       const res = await api.get('/orders', { params });
       setData(res.data || []);
       setTotal(res.total ?? (res.data || []).length);
-    } catch {
+    } catch (err) {
+      // 忽略已取消的请求
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
       message.error('获取订单列表失败');
     } finally {
       setLoading(false);
     }
   }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange, pagination.current, pagination.pageSize]);
 
-  // 筛选条件变化时重置到第1页并查询
+  // 筛选条件变化时重置到第1页并查询（I5: AbortController 防竞态）
   useEffect(() => {
+    const controller = new AbortController();
     setPagination(prev => ({ ...prev, current: 1 }));
-    fetchData(1, pagination.pageSize);
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          company_name: debouncedCompany,
+          country: debouncedCountry,
+          level: filterLevel,
+          continent: debouncedContinent,
+          source: debouncedSource,
+          customer_type: filterCustomerType,
+          customer_id: filterCustomerId,
+          page: 1,
+          pageSize: pagination.pageSize,
+        };
+        if (filterDateRange && filterDateRange[0]) {
+          params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
+          params.order_date_end = filterDateRange[1].format('YYYY-MM-DD');
+        }
+        const res = await api.get('/orders', { params, signal: controller.signal });
+        setData(res.data || []);
+        setTotal(res.total ?? (res.data || []).length);
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        message.error('获取订单列表失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    doFetch();
+    return () => controller.abort();
   }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange]);
 
   // 分页变化查询
@@ -138,6 +179,13 @@ export default function Orders() {
 
   const openEdit = (record) => {
     setEditRecord(record);
+    // M3: 编辑时预加载当前客户到搜索结果中，确保回显
+    if (record.customer_id && record.company_name) {
+      setCustomers(prev => {
+        if (prev.some(c => c.id === record.customer_id)) return prev;
+        return [...prev, { id: record.customer_id, company_name: record.company_name, lead_no: record.lead_no }];
+      });
+    }
     const order = record;
     form.setFieldsValue({
       ...order,
@@ -212,13 +260,15 @@ export default function Orders() {
 
   const handleAddCustomer = async () => {
     const values = await newCustomerForm.validateFields();
-    await api.post('/customers', values);
+    const res = await api.post('/customers', values);
     message.success('客户新增成功');
     setNewCustomerModal(false);
     newCustomerForm.resetFields();
-    // 刷新客户列表
-    const res = await api.get('/customers');
-    setCustomers(res.data || []);
+    // M3: 新增后只将新客户添加到搜索结果，自动选中
+    if (res.data) {
+      setCustomers(prev => [...prev, res.data]);
+      form.setFieldsValue({ customer_id: res.data.id, lead_no: res.data.lead_no || '' });
+    }
   };
 
   const handleAddProduct = async () => {
@@ -291,7 +341,7 @@ export default function Orders() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      // 导出时获取全量数据
+      // 导出时获取全量数据（I7: 使用 export=true 标记，后端允许更大 pageSize）
       const params = {
         company_name: debouncedCompany,
         country: debouncedCountry,
@@ -300,7 +350,8 @@ export default function Orders() {
         source: debouncedSource,
         customer_type: filterCustomerType,
         customer_id: filterCustomerId,
-        pageSize: 999999, // 导出取全部
+        export: 'true',
+        pageSize: 100000,
       };
       if (filterDateRange && filterDateRange[0]) {
         params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
@@ -398,7 +449,7 @@ export default function Orders() {
     {
       title: '产品', key: 'products', width: 160,
       render: (_, r) => r.items?.map((i, idx) => (
-        <div key={idx} style={{ lineHeight: 1.6 }}>
+        <div key={i.model_id || idx} style={{ lineHeight: 1.6 }}>
           <Tag style={{ marginRight: 0, borderRadius: 4, fontSize: 12 }} color="default">{i.category_name || '-'}</Tag>
           {i.product_model && <span style={{ color: '#64748b', fontSize: 12 }}>({i.product_model})</span>}
         </div>
@@ -565,9 +616,12 @@ export default function Orders() {
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]} style={{ width: 280 }}>
               <Select
-                showSearch placeholder="请选择或搜索客户"
+                showSearch placeholder="输入公司名称搜索客户"
                 virtual
-                filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
+                filterOption={false}
+                onSearch={v => setCustomerSearch(v)}
+                loading={customerFetching}
+                notFoundContent={customerFetching ? '搜索中...' : (customerSearch ? '未找到客户' : '请输入关键词搜索')}
                 onChange={(value) => {
                   const customer = customers.find(c => c.id === value);
                   if (customer) {
@@ -636,7 +690,7 @@ export default function Orders() {
               <>
                 <Divider>联系人信息</Divider>
                 <Table
-                  rowKey={(r, i) => i}
+                  rowKey="id"
                   size="small"
                   pagination={false}
                   dataSource={detailRecord.contacts}

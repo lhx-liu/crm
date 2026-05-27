@@ -149,7 +149,7 @@ export default function AnalysisDetail() {
                         <Text strong>产品列表：</Text>
                         {order.items?.length > 0 ? (
                           order.items.map((item, i) => (
-                            <Tag key={i} style={{ margin: '4px 4px 0 0', borderRadius: 6 }}>
+                            <Tag key={item.category_name + '-' + (item.product_model || i)} style={{ margin: '4px 4px 0 0', borderRadius: 6 }}>
                               {item.category_name}({item.product_model}) × {item.quantity}
                             </Tag>
                           ))
