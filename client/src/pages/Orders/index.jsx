@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Table, Button, Input, Select, Space, Modal, Form, InputNumber,
   DatePicker, Popconfirm, message, Typography, Tag, Divider, Card,
@@ -12,18 +12,24 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import api from '../../api';
+import useDebounce from '../../hooks/useDebounce';
 
 const { Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
+const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
+
 export default function Orders() {
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  // M3: 客户下拉改为远程搜索，不再全量加载
   const [customers, setCustomers] = useState([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerFetching, setCustomerFetching] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [availableModels, setAvailableModels] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
@@ -39,7 +45,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // 筛选条件
+  // 筛选条件（即时值，用于输入框显示）
   const [filterCustomerId, setFilterCustomerId] = useState(searchParams.get('customer_id') || '');
   const [filterCompany, setFilterCompany] = useState(searchParams.get('company_name') || '');
   const [filterDateRange, setFilterDateRange] = useState(null);
@@ -49,26 +55,61 @@ export default function Orders() {
   const [filterSource, setFilterSource] = useState('');
   const [filterCustomerType, setFilterCustomerType] = useState('');
 
-  const fetchCustomers = async () => {
-    const res = await api.get('/customers');
-    setCustomers(res.data || []);
-  };
-  const fetchCategories = async () => {
-    const res = await api.get('/products/categories-with-models');
-    setCategories(res.data || []);
-  };
+  // 防抖后的筛选条件（用于发请求）
+  const debouncedCompany = useDebounce(filterCompany, 400);
+  const debouncedCountry = useDebounce(filterCountry, 400);
+  const debouncedContinent = useDebounce(filterContinent, 400);
+  const debouncedSource = useDebounce(filterSource, 400);
 
-  const fetchData = useCallback(async () => {
+  // 分页状态
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 50 });
+
+  // 导出用全量数据标记
+  const [exportLoading, setExportLoading] = useState(false);
+
+  // 产品数据只 mount 时加载一次（客户改为按需搜索，不再全量加载）
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchCat = async () => {
+      const res = await api.get('/products/categories-with-models', { signal: controller.signal });
+      setCategories(res.data || []);
+    };
+    fetchCat();
+    return () => controller.abort();
+  }, []);
+
+  // M3: 客户远程搜索（防抖）
+  const debouncedCustomerSearch = useDebounce(customerSearch, 400);
+  useEffect(() => {
+    if (!debouncedCustomerSearch) {
+      setCustomers([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCustomerFetching(true);
+    api.get('/customers', { params: { search: debouncedCustomerSearch, pageSize: 20 }, signal: controller.signal })
+      .then(res => setCustomers(res.data || []))
+      .catch(err => {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+      })
+      .finally(() => setCustomerFetching(false));
+    return () => controller.abort();
+  }, [debouncedCustomerSearch]);
+
+  // 服务端分页查询
+  const fetchData = useCallback(async (page = pagination.current, pageSize = pagination.pageSize) => {
     setLoading(true);
     try {
       const params = {
-        company_name: filterCompany,
-        country: filterCountry,
+        company_name: debouncedCompany,
+        country: debouncedCountry,
         level: filterLevel,
-        continent: filterContinent,
-        source: filterSource,
+        continent: debouncedContinent,
+        source: debouncedSource,
         customer_type: filterCustomerType,
         customer_id: filterCustomerId,
+        page,
+        pageSize,
       };
       if (filterDateRange && filterDateRange[0]) {
         params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
@@ -76,18 +117,58 @@ export default function Orders() {
       }
       const res = await api.get('/orders', { params });
       setData(res.data || []);
-    } catch {
+      setTotal(res.total ?? (res.data || []).length);
+    } catch (err) {
+      // 忽略已取消的请求
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
       message.error('获取订单列表失败');
     } finally {
       setLoading(false);
     }
-  }, [filterCompany, filterDateRange, filterCountry, filterLevel, filterContinent, filterSource, filterCustomerType, filterCustomerId]);
+  }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange, pagination.current, pagination.pageSize]);
 
+  // 筛选条件变化时重置到第1页并查询（I5: AbortController 防竞态）
   useEffect(() => {
-    fetchData();
-    fetchCustomers();
-    fetchCategories();
-  }, [fetchData]);
+    const controller = new AbortController();
+    setPagination(prev => ({ ...prev, current: 1 }));
+    const doFetch = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          company_name: debouncedCompany,
+          country: debouncedCountry,
+          level: filterLevel,
+          continent: debouncedContinent,
+          source: debouncedSource,
+          customer_type: filterCustomerType,
+          customer_id: filterCustomerId,
+          page: 1,
+          pageSize: pagination.pageSize,
+        };
+        if (filterDateRange && filterDateRange[0]) {
+          params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
+          params.order_date_end = filterDateRange[1].format('YYYY-MM-DD');
+        }
+        const res = await api.get('/orders', { params, signal: controller.signal });
+        setData(res.data || []);
+        setTotal(res.total ?? (res.data || []).length);
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+        message.error('获取订单列表失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    doFetch();
+    return () => controller.abort();
+  }, [debouncedCompany, debouncedCountry, filterLevel, debouncedContinent, debouncedSource, filterCustomerType, filterCustomerId, filterDateRange]);
+
+  // 分页变化查询
+  const handleTableChange = (pag) => {
+    const { current, pageSize } = pag;
+    setPagination({ current, pageSize });
+    fetchData(current, pageSize);
+  };
 
   const openAdd = () => {
     setEditRecord(null);
@@ -98,13 +179,19 @@ export default function Orders() {
 
   const openEdit = (record) => {
     setEditRecord(record);
+    // M3: 编辑时预加载当前客户到搜索结果中，确保回显
+    if (record.customer_id && record.company_name) {
+      setCustomers(prev => {
+        if (prev.some(c => c.id === record.customer_id)) return prev;
+        return [...prev, { id: record.customer_id, company_name: record.company_name, lead_no: record.lead_no }];
+      });
+    }
     const order = record;
     form.setFieldsValue({
       ...order,
       order_date: order.order_date ? dayjs(order.order_date) : null,
       payment_date: order.payment_date ? dayjs(order.payment_date) : null,
       items: order.items?.length ? order.items.map(i => {
-        // 从产品表取最新价格，而非使用旧快照 unit_price
         const latestPrice = (() => {
           for (const cat of categories) {
             const model = cat.models?.find(m => m.id === Number(i.model_id));
@@ -173,11 +260,15 @@ export default function Orders() {
 
   const handleAddCustomer = async () => {
     const values = await newCustomerForm.validateFields();
-    await api.post('/customers', values);
+    const res = await api.post('/customers', values);
     message.success('客户新增成功');
     setNewCustomerModal(false);
     newCustomerForm.resetFields();
-    fetchCustomers();
+    // M3: 新增后只将新客户添加到搜索结果，自动选中
+    if (res.data) {
+      setCustomers(prev => [...prev, res.data]);
+      form.setFieldsValue({ customer_id: res.data.id, lead_no: res.data.lead_no || '' });
+    }
   };
 
   const handleAddProduct = async () => {
@@ -186,7 +277,9 @@ export default function Orders() {
     message.success('型号新增成功');
     setNewProductModal(false);
     newProductForm.resetFields();
-    fetchCategories();
+    // 刷新分类列表
+    const res = await api.get('/products/categories-with-models');
+    setCategories(res.data || []);
   };
 
   const handleAddCategory = async () => {
@@ -200,17 +293,17 @@ export default function Orders() {
       message.success('大类新增成功');
       setNewCategoryModal(false);
       newCategoryForm.resetFields();
-      await fetchCategories();
+      // 刷新分类列表
+      const catRes = await api.get('/products/categories-with-models');
+      setCategories(catRes.data || []);
       const newCategoryId = res.data?.id;
       if (newCategoryId && activeCategoryItemIdx !== null) {
         setSelectedCategoryId(newCategoryId);
-        setTimeout(() => {
-          const items = form.getFieldValue('items') || [];
-          const idx = activeCategoryItemIdx;
-          const newItems = [...items];
-          newItems[idx] = { ...newItems[idx], category_id: newCategoryId, model_id: undefined, unit_price: undefined, amount: undefined };
-          form.setFieldsValue({ items: newItems });
-        }, 0);
+        // 局部更新：只修改该行
+        form.setFieldValue(['items', activeCategoryItemIdx, 'category_id'], newCategoryId);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'model_id'], undefined);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'unit_price'], undefined);
+        form.setFieldValue(['items', activeCategoryItemIdx, 'amount'], undefined);
       }
     } catch (err) {
       if (err?.response?.data?.message) message.error(err.response.data.message);
@@ -218,10 +311,11 @@ export default function Orders() {
   };
 
   const handleCategoryChange = (categoryId, idx) => {
-    const items = form.getFieldValue('items') || [];
-    const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], category_id: categoryId, model_id: undefined, unit_price: undefined, amount: undefined };
-    form.setFieldsValue({ items: newItems });
+    // 局部更新
+    form.setFieldValue(['items', idx, 'category_id'], categoryId);
+    form.setFieldValue(['items', idx, 'model_id'], undefined);
+    form.setFieldValue(['items', idx, 'unit_price'], undefined);
+    form.setFieldValue(['items', idx, 'amount'], undefined);
   };
 
   const handleModelSelect = (modelId, idx) => {
@@ -230,13 +324,10 @@ export default function Orders() {
     if (category) {
       const model = category.models?.find(m => String(m.id) === String(modelId));
       if (model) {
-        const items = form.getFieldValue('items') || [];
-        const currentQty = items[idx]?.quantity || 0;
-        form.setFieldsValue({
-          items: items.map((item, i) =>
-            i === idx ? { ...item, unit_price: model.price, amount: Number(currentQty || 0) * Number(model.price) } : item
-          ),
-        });
+        const currentQty = form.getFieldValue(['items', idx, 'quantity']) || 0;
+        // 局部更新
+        form.setFieldValue(['items', idx, 'unit_price'], model.price);
+        form.setFieldValue(['items', idx, 'amount'], Number(currentQty || 0) * Number(model.price));
       }
     }
   };
@@ -246,17 +337,35 @@ export default function Orders() {
     setFilterCompany(companyName);
   };
 
-  // 导出Excel
-  const handleExportExcel = () => {
-    if (!data || data.length === 0) {
-      message.warning('没有数据可导出');
-      return;
-    }
-
+  // 导出Excel — 服务端全量查询
+  const handleExportExcel = async () => {
+    setExportLoading(true);
     try {
-      const exportData = [];
+      // 导出时获取全量数据（I7: 使用 export=true 标记，后端允许更大 pageSize）
+      const params = {
+        company_name: debouncedCompany,
+        country: debouncedCountry,
+        level: filterLevel,
+        continent: debouncedContinent,
+        source: debouncedSource,
+        customer_type: filterCustomerType,
+        customer_id: filterCustomerId,
+        export: 'true',
+        pageSize: 100000,
+      };
+      if (filterDateRange && filterDateRange[0]) {
+        params.order_date_start = filterDateRange[0].format('YYYY-MM-DD');
+        params.order_date_end = filterDateRange[1].format('YYYY-MM-DD');
+      }
+      const res = await api.get('/orders', { params });
+      const exportData = res.data || [];
+      if (!exportData.length) {
+        message.warning('没有数据可导出');
+        return;
+      }
 
-      data.forEach(order => {
+      const rows = [];
+      exportData.forEach(order => {
         const contactInfo = order.contacts?.length
           ? order.contacts.map(c => [c.name, c.email, c.phone].filter(Boolean).join('/')).join(',\n')
           : '-';
@@ -285,7 +394,7 @@ export default function Orders() {
 
         if (order.items && order.items.length > 0) {
           order.items.forEach(item => {
-            exportData.push({
+            rows.push({
               ...baseRow,
               '产品大类': item.category_name || '-',
               '产品型号': item.product_model || '-',
@@ -294,19 +403,12 @@ export default function Orders() {
             });
           });
         } else {
-          exportData.push({
-            ...baseRow,
-            '产品大类': '-',
-            '产品型号': '-',
-            '数量': '-',
-            '金额': '-',
-          });
+          rows.push({ ...baseRow, '产品大类': '-', '产品型号': '-', '数量': '-', '金额': '-' });
         }
       });
 
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
+      const ws = XLSX.utils.json_to_sheet(rows);
       const colWidths = [
         { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
         { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 },
@@ -315,7 +417,6 @@ export default function Orders() {
         { wch: 10 }, { wch: 12 }, { wch: 35 },
       ];
       ws['!cols'] = colWidths;
-
       XLSX.utils.book_append_sheet(wb, ws, '订单数据');
       const fileName = `订单数据_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`;
       XLSX.writeFile(wb, fileName);
@@ -323,6 +424,8 @@ export default function Orders() {
     } catch (err) {
       console.error('导出失败:', err);
       message.error('导出失败');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -333,7 +436,7 @@ export default function Orders() {
     },
     {
       title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
-      render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? '#10b981' : '#3b82f6'}>{v}</Tag> : '-'
+      render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? 'var(--crm-success)' : 'var(--crm-info)'}>{v}</Tag> : '-'
     },
     {
       title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
@@ -346,9 +449,9 @@ export default function Orders() {
     {
       title: '产品', key: 'products', width: 160,
       render: (_, r) => r.items?.map((i, idx) => (
-        <div key={idx} style={{ lineHeight: 1.6 }}>
+        <div key={i.model_id || idx} style={{ lineHeight: 1.6 }}>
           <Tag style={{ marginRight: 0, borderRadius: 4, fontSize: 12 }} color="default">{i.category_name || '-'}</Tag>
-          {i.product_model && <span style={{ color: '#64748b', fontSize: 12 }}>({i.product_model})</span>}
+          {i.product_model && <span style={{ color: 'var(--crm-sub-text-color)', fontSize: 12 }}>({i.product_model})</span>}
         </div>
       ))
     },
@@ -356,7 +459,7 @@ export default function Orders() {
     { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
     {
       title: '到款金额', dataIndex: 'payment_amount', key: 'payment_amount', width: 110, align: 'right',
-      render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', key: 'action', width: 160, fixed: 'right', align: 'center',
@@ -382,39 +485,51 @@ export default function Orders() {
         </div>
         <Space size={8}>
           {filterCustomerId && <Button onClick={() => { setFilterCustomerId(''); setFilterCompany(''); }}>查看全部订单</Button>}
-          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={loading}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={exportLoading}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增订单</Button>
         </Space>
       </div>
 
-      {/* Filter bar — 所有条件平铺 */}
+      {/* Filter bar — 文本输入不再 onChange 直接触发查询，仅 onSearch 或防抖触发 */}
       <div className="crm-filter-bar">
         <Input.Search
           placeholder="公司名称" allowClear style={{ width: 160 }}
           value={filterCompany}
           onSearch={v => { setFilterCustomerId(''); setFilterCompany(v); }}
-          onChange={e => { if (!e.target.value) { setFilterCustomerId(''); setFilterCompany(''); } else setFilterCompany(e.target.value); }}
+          onChange={e => {
+            const v = e.target.value;
+            if (!v) { setFilterCustomerId(''); setFilterCompany(''); }
+            else setFilterCompany(v);
+          }}
         />
         <RangePicker placeholder={['开始日期', '结束日期']} onChange={v => setFilterDateRange(v)} style={{ width: 240 }} />
-        <Input.Search placeholder="国家" allowClear style={{ width: 120 }} onSearch={v => setFilterCountry(v)} onChange={e => !e.target.value && setFilterCountry('')} />
+        <Input.Search placeholder="国家" allowClear style={{ width: 120 }} onSearch={v => setFilterCountry(v)} onChange={e => { if (!e.target.value) setFilterCountry(''); else setFilterCountry(e.target.value); }} />
         <Select placeholder="客户等级" allowClear style={{ width: 100 }} onChange={v => setFilterLevel(v || '')}>
           <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
         </Select>
-        <Input.Search placeholder="大洲" allowClear style={{ width: 120 }} onSearch={v => setFilterContinent(v)} onChange={e => !e.target.value && setFilterContinent('')} />
-        <Input.Search placeholder="客户来源" allowClear style={{ width: 120 }} onSearch={v => setFilterSource(v)} onChange={e => !e.target.value && setFilterSource('')} />
+        <Input.Search placeholder="大洲" allowClear style={{ width: 120 }} onSearch={v => setFilterContinent(v)} onChange={e => { if (!e.target.value) setFilterContinent(''); else setFilterContinent(e.target.value); }} />
+        <Input.Search placeholder="客户来源" allowClear style={{ width: 120 }} onSearch={v => setFilterSource(v)} onChange={e => { if (!e.target.value) setFilterSource(''); else setFilterSource(e.target.value); }} />
         <Select placeholder="新旧客户" allowClear style={{ width: 100 }} onChange={v => setFilterCustomerType(v || '')}>
           <Option value="新客户">新客户</Option><Option value="老客户">老客户</Option>
         </Select>
       </div>
 
-      {/* Table */}
+      {/* Table — 服务端分页 */}
       <div className="crm-table-container">
         <Table
           rowKey="id"
           columns={columns}
           dataSource={data}
           loading={loading}
-          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total,
+            showTotal: t => `共 ${t} 条`,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+          }}
+          onChange={handleTableChange}
           size="middle"
           scroll={{ x: 1100, y: 'calc(100vh - 320px)' }}
         />
@@ -435,7 +550,7 @@ export default function Orders() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: 'var(--crm-card-inner-bg)' }}
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} wrap align="start">
@@ -481,15 +596,8 @@ export default function Orders() {
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'quantity']} label="数量" style={{ width: 100, marginBottom: 0 }}>
                         <InputNumber min={0} style={{ width: '100%' }} onChange={(newQty) => {
-                          setTimeout(() => {
-                            const items = form.getFieldValue('items') || [];
-                            const price = items[name]?.unit_price || 0;
-                            form.setFieldsValue({
-                              items: items.map((item, i) =>
-                                i === name ? { ...item, amount: Number(newQty || 0) * Number(price) } : item
-                              ),
-                            });
-                          }, 0);
+                          const price = form.getFieldValue(['items', name, 'unit_price']) || 0;
+                          form.setFieldValue(['items', name, 'amount'], Number(newQty || 0) * Number(price));
                         }} />
                       </Form.Item>
                       <Form.Item {...restField} name={[name, 'unit_price']} hidden><InputNumber /></Form.Item>
@@ -508,8 +616,12 @@ export default function Orders() {
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]} style={{ width: 280 }}>
               <Select
-                showSearch placeholder="请选择或搜索客户"
-                filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
+                showSearch placeholder="输入公司名称搜索客户"
+                virtual
+                filterOption={false}
+                onSearch={v => setCustomerSearch(v)}
+                loading={customerFetching}
+                notFoundContent={customerFetching ? '搜索中...' : (customerSearch ? '未找到客户' : '请输入关键词搜索')}
                 onChange={(value) => {
                   const customer = customers.find(c => c.id === value);
                   if (customer) {
@@ -564,7 +676,7 @@ export default function Orders() {
             <Descriptions title="客户信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
               <Descriptions.Item label="公司名称">{detailRecord.company_name}</Descriptions.Item>
               <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag color={{ A: 'red', B: 'orange', C: 'blue' }[detailRecord.level]}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[detailRecord.level] || ''}`}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属大洲">{detailRecord.continent || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户来源">{detailRecord.source || '-'}</Descriptions.Item>
@@ -578,7 +690,7 @@ export default function Orders() {
               <>
                 <Divider>联系人信息</Divider>
                 <Table
-                  rowKey={(r, i) => i}
+                  rowKey="id"
                   size="small"
                   pagination={false}
                   dataSource={detailRecord.contacts}
@@ -597,7 +709,7 @@ export default function Orders() {
               <Descriptions.Item label="订单日期">{detailRecord.order_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="到款日期">{detailRecord.payment_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="请购单号">{detailRecord.purchase_order_no || '-'}</Descriptions.Item>
-              <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: '#1677ff' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
+              <Descriptions.Item label="到款金额"><strong style={{ fontSize: 16, color: 'var(--crm-primary)', fontFamily: 'var(--crm-font-mono)' }}>${Number(detailRecord.payment_amount || 0).toFixed(2)}</strong></Descriptions.Item>
               <Descriptions.Item label="发票金额">{detailRecord.invoice_amount ? `$${Number(detailRecord.invoice_amount).toFixed(2)}` : '-'}</Descriptions.Item>
               <Descriptions.Item label="EXW货值">{detailRecord.exw_value ? `$${Number(detailRecord.exw_value).toFixed(2)}` : '-'}</Descriptions.Item>
             </Descriptions>
@@ -612,7 +724,7 @@ export default function Orders() {
                 { title: '产品大类', dataIndex: 'category_name' },
                 { title: '型号', dataIndex: 'product_model' },
                 { title: '数量', dataIndex: 'quantity' },
-                { title: '金额', render: (_, r) => `$${Number(r.amount != null ? r.amount : (r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}` },
+                { title: '金额', render: (_, r) => <span className="crm-money">${Number(r.amount != null ? r.amount : (r.unit_price || 0) * (r.quantity || 0)).toFixed(2)}</span> },
               ]}
             />
           </>
@@ -646,7 +758,7 @@ export default function Orders() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: 'var(--crm-card-inner-bg)' }}
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} align="start" wrap>

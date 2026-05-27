@@ -118,20 +118,20 @@ export default function Products() {
       title: '大类名称', 
       dataIndex: 'name', 
       key: 'name',
-      render: (v) => <span style={{ fontWeight: 600, fontSize: 14, color: '#1e293b' }}>{v}</span>
+      render: (v) => <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--crm-text-secondary)' }}>{v}</span>
     },
     { 
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v ? <span style={{ color: '#64748b' }}>{v}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     { 
       title: '型号数量', 
       key: 'model_count',
       width: 100,
       align: 'center',
-      render: (_, r) => <Tag className="crm-tag" color="blue">{r.models?.length || 0}</Tag>
+      render: (_, r) => <Tag className="crm-tag" style={{ background: 'var(--crm-primary-light)', color: 'var(--crm-primary)', border: 'none' }}>{r.models?.length || 0}</Tag>
     },
     {
       title: '操作', 
@@ -140,7 +140,7 @@ export default function Products() {
       align: 'center',
       render: (_, record) => (
         <Space size={4}>
-          <Button size="small" type="text" icon={<PlusOutlined />} className="crm-action-btn" style={{ color: '#2563eb' }} onClick={() => openAddModel(record.id)}>新增型号</Button>
+          <Button size="small" type="text" icon={<PlusOutlined />} className="crm-action-btn" onClick={() => openAddModel(record.id)}>新增型号</Button>
           <Button size="small" type="text" icon={<EditOutlined />} className="crm-action-btn" onClick={() => openEditCategory(record)}>编辑</Button>
           <Popconfirm title="确认删除该大类？" onConfirm={() => handleDeleteCategory(record.id)} okText="确认" cancelText="取消">
             <Button size="small" type="text" danger icon={<DeleteOutlined />} className="crm-action-btn">删除</Button>
@@ -156,7 +156,7 @@ export default function Products() {
       title: '型号名称', 
       dataIndex: 'model', 
       key: 'model',
-      render: v => <span style={{ fontWeight: 500, color: '#334155' }}>{v}</span>
+      render: v => <span style={{ fontWeight: 500, color: 'var(--crm-text-body)' }}>{v}</span>
     },
     { 
       title: '单价 ($)', 
@@ -170,7 +170,7 @@ export default function Products() {
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v ? <span style={{ color: '#64748b' }}>{v}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', 

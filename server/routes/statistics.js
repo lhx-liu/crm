@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../db/database');
 
+// I1: 生产环境错误信息脱敏
+const safeMsg = (err) => process.env.NODE_ENV === 'production' ? '服务器内部错误' : err.message;
+
 // 大洲订单分布
 router.get('/continent-distribution', async (req, res) => {
   try {
@@ -21,7 +24,8 @@ router.get('/continent-distribution', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Continent distribution error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -44,7 +48,8 @@ router.get('/payment-trend', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Payment trend error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -71,7 +76,8 @@ router.get('/payment-compare', async (req, res) => {
 
     res.json({ success: true, data: result });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Payment compare error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -100,7 +106,8 @@ router.get('/product-ranking', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Product ranking error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -127,7 +134,8 @@ router.get('/product-orders/:categoryId', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Product orders error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 

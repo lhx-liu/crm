@@ -57,7 +57,8 @@ export function AuthProvider({ children }) {
   };
 
   const changePassword = async (userId, oldPassword, newPassword) => {
-    const res = await api.put('/auth/password', { userId, oldPassword, newPassword });
+    // C1: 后端已从 token 获取 userId，不再需要传 userId
+    const res = await api.put('/auth/password', { oldPassword, newPassword });
     if (res.success) {
       setMustChangePassword(false);
       setUser(prev => prev ? { ...prev, mustChangePassword: false } : prev);

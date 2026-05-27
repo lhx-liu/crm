@@ -11,7 +11,7 @@ const DB_CONFIG = {
   host: process.env.MYSQL_HOST || 'localhost',
   port: process.env.MYSQL_PORT || '3306',
   user: process.env.MYSQL_USER || 'crm_user',
-  password: process.env.MYSQL_PASSWORD || 'crm_password_2024',
+  password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE || 'crm_db',
 };
 
@@ -36,8 +36,9 @@ async function performBackup() {
     const backupFileName = generateBackupFileName();
     const backupPath = path.join(BACKUP_DIR, backupFileName);
 
-    const cmd = `mysqldump -h${DB_CONFIG.host} -P${DB_CONFIG.port} -u${DB_CONFIG.user} -p${DB_CONFIG.password} ${DB_CONFIG.database} > "${backupPath}"`;
-    await execAsync(cmd);
+    const env = { ...process.env, MYSQL_PWD: DB_CONFIG.password };
+    const cmd = `mysqldump -h${DB_CONFIG.host} -P${DB_CONFIG.port} -u${DB_CONFIG.user} ${DB_CONFIG.database} > "${backupPath}"`;
+    await execAsync(cmd, { env });
 
     const stats = fs.statSync(backupPath);
     const fileSizeInMB = (stats.size / (1024 * 1024)).toFixed(2);
@@ -102,8 +103,9 @@ async function restoreBackup(backupFileName) {
       return false;
     }
 
-    const cmd = `mysql -h${DB_CONFIG.host} -P${DB_CONFIG.port} -u${DB_CONFIG.user} -p${DB_CONFIG.password} ${DB_CONFIG.database} < "${backupPath}"`;
-    await execAsync(cmd);
+    const env = { ...process.env, MYSQL_PWD: DB_CONFIG.password };
+    const cmd = `mysql -h${DB_CONFIG.host} -P${DB_CONFIG.port} -u${DB_CONFIG.user} ${DB_CONFIG.database} < "${backupPath}"`;
+    await execAsync(cmd, { env });
     console.log('✅ 数据库恢复成功!');
     return true;
   } catch (error) {

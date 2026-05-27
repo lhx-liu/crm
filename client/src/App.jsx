@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Typography, ConfigProvider, Dropdown, Avatar, Spin } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Layout, Menu, Typography, ConfigProvider, Dropdown, Avatar, Spin, Popover, Button } from 'antd';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import {
   ShopOutlined, TeamOutlined, FileTextOutlined,
-  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined
+  BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined,
+  BellOutlined, BgColorsOutlined, CheckOutlined
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './AuthContext';
+import { ThemeProvider, useTheme } from './ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Products from './pages/Products';
 import Customers from './pages/Customers';
@@ -54,10 +57,51 @@ function PrivateRoute({ children }) {
   return children;
 }
 
+/** 主题切换面板 */
+function ThemeSwitcher() {
+  const { themeKey, switchTheme, themeList } = useTheme();
+
+  const content = (
+    <div style={{ minWidth: 140 }}>
+      <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--crm-text-muted)', fontWeight: 600 }}>选择主题</div>
+      {themeList.map(t => (
+        <div
+          key={t.key}
+          onClick={() => switchTheme(t.key)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+            background: themeKey === t.key ? 'var(--crm-primary-bg)' : 'transparent',
+          }}
+          onMouseEnter={e => { if (themeKey !== t.key) e.currentTarget.style.background = 'var(--crm-border-light)'; }}
+          onMouseLeave={e => { if (themeKey !== t.key) e.currentTarget.style.background = 'transparent'; }}
+        >
+          <span style={{ fontSize: 14, color: themeKey === t.key ? 'var(--crm-primary)' : 'var(--crm-text-body)', fontWeight: themeKey === t.key ? 600 : 400 }}>
+            {t.name}
+          </span>
+          {themeKey === t.key && <CheckOutlined style={{ color: 'var(--crm-primary)', fontSize: 12 }} />}
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <Popover content={content} trigger="click" placement="bottomRight" overlayStyle={{ zIndex: 1050 }}>
+      <BgColorsOutlined style={{ fontSize: 18, color: 'var(--crm-text-muted)', cursor: 'pointer', transition: 'color 0.2s' }} />
+    </Popover>
+  );
+}
+
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
 
   const selectedKey = location.pathname === '/' ? '/orders' : '/' + location.pathname.split('/')[1];
@@ -84,12 +128,24 @@ function AppLayout() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         theme="dark"
-        width={200}
+        width={220}
+        className="crm-sider"
         style={{ position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 100 }}
       >
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          {!collapsed && <Title level={5} style={{ color: '#fff', margin: 0 }}>CRM 系统</Title>}
-          {collapsed && <Title level={5} style={{ color: '#fff', margin: 0, textAlign: 'center' }}>C</Title>}
+        <div className="crm-sider-logo">
+          {!collapsed ? (
+            <div className="crm-sider-logo-expanded">
+              <div className="crm-sider-logo-icon">C</div>
+              <div className="crm-sider-logo-text">
+                <h1>CRM</h1>
+                <p>客户管理系统</p>
+              </div>
+            </div>
+          ) : (
+            <div className="crm-sider-logo-collapsed">
+              <div className="crm-sider-logo-icon">C</div>
+            </div>
+          )}
         </div>
         <Menu
           theme="dark"
@@ -97,29 +153,24 @@ function AppLayout() {
           selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, borderRight: 'none' }}
         />
+        {!collapsed && <div className="crm-sider-version">v2.0</div>}
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s' }}>
-        <Header style={{
-          background: '#fff',
-          padding: '0 24px',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-        }}>
-          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#667eea' }} />
-              <Text>{user?.username || '用户'}</Text>
-            </div>
-          </Dropdown>
+      <Layout style={{ marginLeft: collapsed ? 80 : 220, transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        <Header className="crm-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <BellOutlined style={{ fontSize: 18, color: 'var(--crm-text-muted)', cursor: 'pointer' }} />
+            <ThemeSwitcher />
+            <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Avatar icon={<UserOutlined />} className="crm-avatar" />
+                <Text>{user?.username || '用户'}</Text>
+              </div>
+            </Dropdown>
+          </div>
         </Header>
-        <Content style={{ background: '#f5f6fa', minHeight: 'calc(100vh - 64px)', padding: '16px', overflow: 'hidden' }}>
+        <Content className="crm-content">
           <Routes>
             <Route path="/" element={<Orders />} />
             <Route path="/products" element={<Products />} />
@@ -136,21 +187,49 @@ function AppLayout() {
   );
 }
 
-export default function App() {
+/** 动态主题 ConfigProvider 包装器 */
+function ThemedApp() {
+  const { theme } = useTheme();
+
+  const antdTheme = useMemo(() => ({
+    token: {
+      colorPrimary: theme.antdToken.colorPrimary,
+      colorInfo: theme.antdToken.colorInfo,
+      colorSuccess: theme.antdToken.colorSuccess,
+      colorWarning: theme.antdToken.colorWarning,
+      colorError: theme.antdToken.colorError,
+      borderRadius: theme.antdToken.borderRadius,
+      fontFamily: '"Noto Sans SC", "DM Sans", sans-serif',
+      colorBgContainer: theme.antdToken.colorBgContainer,
+      colorBorder: theme.antdToken.colorBorder,
+    },
+    components: theme.antdComponents,
+  }), [theme]);
+
   return (
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/*" element={
-              <PrivateRoute>
-                <AppLayout />
-              </PrivateRoute>
-            } />
-          </Routes>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/*" element={
+                <PrivateRoute>
+                  <AppLayout />
+                </PrivateRoute>
+              } />
+            </Routes>
+          </AuthProvider>
+        </ErrorBoundary>
       </BrowserRouter>
     </ConfigProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
   );
 }
