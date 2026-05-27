@@ -436,7 +436,7 @@ export default function Orders() {
     },
     {
       title: '新旧客户', dataIndex: 'customer_type', key: 'customer_type', width: 90, fixed: 'left',
-      render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? '#10b981' : '#3b82f6'}>{v}</Tag> : '-'
+      render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? 'var(--crm-success)' : 'var(--crm-info)'}>{v}</Tag> : '-'
     },
     {
       title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
@@ -451,7 +451,7 @@ export default function Orders() {
       render: (_, r) => r.items?.map((i, idx) => (
         <div key={i.model_id || idx} style={{ lineHeight: 1.6 }}>
           <Tag style={{ marginRight: 0, borderRadius: 4, fontSize: 12 }} color="default">{i.category_name || '-'}</Tag>
-          {i.product_model && <span style={{ color: '#64748b', fontSize: 12 }}>({i.product_model})</span>}
+          {i.product_model && <span style={{ color: 'var(--crm-sub-text-color)', fontSize: 12 }}>({i.product_model})</span>}
         </div>
       ))
     },
@@ -459,7 +459,7 @@ export default function Orders() {
     { title: '客户商机', dataIndex: 'opportunity', key: 'opportunity', ellipsis: true },
     {
       title: '到款金额', dataIndex: 'payment_amount', key: 'payment_amount', width: 110, align: 'right',
-      render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', key: 'action', width: 160, fixed: 'right', align: 'center',
@@ -550,7 +550,7 @@ export default function Orders() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: 'var(--crm-card-inner-bg)' }}
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} wrap align="start">
@@ -758,7 +758,7 @@ export default function Orders() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: 'var(--crm-card-inner-bg)' }}
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} align="start" wrap>

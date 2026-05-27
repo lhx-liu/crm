@@ -3,14 +3,15 @@ import { Row, Col, Card, Select, DatePicker, Button, Table, Modal, Typography, S
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import api from '../../api';
+import { useTheme } from '../../ThemeContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
-const CHART_COLORS = ['#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
 export default function Statistics() {
+  const { theme } = useTheme();
+  const CHART_COLORS = theme.chartColors;
   const [globalRange, setGlobalRange] = useState([dayjs().subtract(1, 'year'), dayjs()]);
   const [continentType, setContinentType] = useState('count');
   const [trendGranularity, setTrendGranularity] = useState('month');

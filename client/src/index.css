@@ -1,17 +1,16 @@
 /* ============================================
-   CRM 客户管理系统 — 深海商务风格
-   全局基础样式 & CSS 变量
+   CRM 客户管理系统 — 主题化样式
+   全局基础样式 & CSS 变量（默认值由 ThemeContext 动态设置）
    ============================================ */
 
-:root {
-  /* 品牌色 */
+::root {
+  /* 默认值 — 实际由 ThemeContext 在运行时覆盖 */
   --crm-primary: #0d9488;
   --crm-primary-hover: #0f766e;
   --crm-primary-active: #115e59;
   --crm-primary-light: #ccfbf1;
   --crm-primary-bg: #f0fdfa;
 
-  /* 中性色 */
   --crm-text-primary: #0f172a;
   --crm-text-secondary: #1e293b;
   --crm-text-body: #334155;
@@ -24,27 +23,44 @@
   --crm-bg-card: #ffffff;
   --crm-bg-dark: #0f172a;
 
-  /* 语义色 */
   --crm-success: #10b981;
   --crm-warning: #f59e0b;
   --crm-danger: #ef4444;
   --crm-info: #0d9488;
 
-  /* 阴影 */
   --crm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --crm-shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
   --crm-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.04);
 
-  /* 圆角 */
   --crm-radius-sm: 6px;
   --crm-radius-md: 10px;
   --crm-radius-lg: 12px;
   --crm-radius-xl: 16px;
 
-  /* 字体 — 使用系统字体，无需外部 CDN */
   --crm-font-display: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --crm-font-body: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
   --crm-font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", "PingFang SC", monospace;
+
+  --crm-tag-level-a-bg: #fef2f2;
+  --crm-tag-level-a-text: #dc2626;
+  --crm-tag-level-b-bg: #fffbeb;
+  --crm-tag-level-b-text: #d97706;
+  --crm-tag-level-c-bg: #eff6ff;
+  --crm-tag-level-c-text: #2563eb;
+
+  --crm-card-inner-bg: #fafafa;
+  --crm-empty-color: #cbd5e1;
+  --crm-sub-text-color: #64748b;
+
+  --crm-login-left-bg: #0f172a;
+  --crm-login-right-bg: #f0fdfa;
+  --crm-login-gradient-from: #0d9488;
+  --crm-login-gradient-to: #0f766e;
+  --crm-login-ring-color: rgba(13, 148, 136, 0.3);
+  --crm-login-ring-color-light: rgba(13, 148, 136, 0.2);
+  --crm-login-dot-color: rgba(13, 148, 136, 0.1);
+  --crm-login-line-color: rgba(13, 148, 136, 0.15);
+  --crm-login-accent-color: rgba(13, 148, 136, 0.6);
 }
 
 * {
@@ -58,6 +74,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--crm-text-body);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 code {

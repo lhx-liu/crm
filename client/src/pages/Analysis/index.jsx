@@ -6,7 +6,6 @@ import api from '../../api';
 import useDebounce from '../../hooks/useDebounce';
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
-const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function AnalysisList() {
   const [data, setData] = useState([]);

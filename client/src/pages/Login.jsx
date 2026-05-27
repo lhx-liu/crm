@@ -38,7 +38,7 @@ export default function Login() {
       {/* 左侧品牌展示区 */}
       <div style={{
         width: '55%',
-        background: '#0f172a',
+        background: 'var(--crm-login-left-bg)',
         position: 'relative',
         overflow: 'hidden',
         display: 'flex',
@@ -54,7 +54,7 @@ export default function Login() {
           right: '15%',
           width: 300,
           height: 300,
-          border: '2px solid rgba(13, 148, 136, 0.3)',
+          border: `2px solid var(--crm-login-ring-color)`,
           borderRadius: '50%',
           animation: 'crm-spin-slow 20s linear infinite',
         }} />
@@ -65,7 +65,7 @@ export default function Login() {
           left: '10%',
           width: 180,
           height: 180,
-          border: '2px solid rgba(13, 148, 136, 0.2)',
+          border: `2px solid var(--crm-login-ring-color-light)`,
           borderRadius: '50%',
           animation: 'crm-spin-slow 15s linear infinite reverse',
         }} />
@@ -76,7 +76,7 @@ export default function Login() {
           left: '30%',
           width: 80,
           height: 80,
-          background: 'radial-gradient(circle, rgba(13, 148, 136, 0.1) 1px, transparent 1px)',
+          background: 'radial-gradient(circle, var(--crm-login-dot-color) 1px, transparent 1px)',
           backgroundSize: '12px 12px',
           animation: 'crm-float 6s ease-in-out infinite',
         }} />
@@ -87,7 +87,7 @@ export default function Login() {
           left: '60%',
           width: 1,
           height: '100%',
-          background: 'linear-gradient(to bottom, transparent, rgba(13, 148, 136, 0.15), transparent)',
+          background: `linear-gradient(to bottom, transparent, var(--crm-login-line-color), transparent)`,
           transform: 'rotate(25deg)',
           transformOrigin: 'top',
         }} />
@@ -104,7 +104,7 @@ export default function Login() {
             width: 56,
             height: 56,
             borderRadius: 14,
-            background: 'linear-gradient(135deg, #0d9488, #0f766e)',
+            background: `linear-gradient(135deg, var(--crm-login-gradient-from), var(--crm-login-gradient-to))`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -151,7 +151,7 @@ export default function Login() {
                 fontSize: 16,
                 fontFamily: '"Noto Sans SC", sans-serif',
               }}>
-                <span style={{ color: 'rgba(13, 148, 136, 0.6)', fontSize: 10 }}>{item.icon}</span>
+                <span style={{ color: 'var(--crm-login-accent-color)', fontSize: 10 }}>{item.icon}</span>
                 {item.text}
               </div>
             ))}
@@ -170,11 +170,12 @@ export default function Login() {
       {/* 右侧登录表单区 */}
       <div style={{
         width: '45%',
-        background: '#f0fdfa',
+        background: 'var(--crm-login-right-bg)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 48,
+        transition: 'background 0.3s ease',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
           <div style={{ marginBottom: 40 }}>
@@ -235,7 +236,7 @@ export default function Login() {
                 style={{
                   height: 48,
                   borderRadius: 10,
-                  background: 'linear-gradient(135deg, #0d9488, #0f766e)',
+                  background: `linear-gradient(135deg, var(--crm-login-gradient-from), var(--crm-login-gradient-to))`,
                   border: 'none',
                   fontSize: 16,
                   fontWeight: 600,

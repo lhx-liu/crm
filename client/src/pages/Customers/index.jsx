@@ -13,7 +13,6 @@ import useDebounce from '../../hooks/useDebounce';
 const { Option } = Select;
 
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
-const LEVEL_COLOR = { A: '#ef4444', B: '#f59e0b', C: '#3b82f6' };
 
 export default function Customers() {
   const [data, setData] = useState([]);
@@ -185,7 +184,7 @@ export default function Customers() {
       title: '联系人', key: 'contacts', width: 120,
       render: (_, r) => r.contacts?.length
         ? r.contacts.map((c) => <div key={c.id || c.name} style={{ lineHeight: 1.6, fontSize: 13 }}>{c.name || '-'}</div>)
-        : <span style={{ color: '#cbd5e1' }}>-</span>
+        : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', key: 'action', width: 200, fixed: 'right', align: 'center',
@@ -315,7 +314,7 @@ export default function Customers() {
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name, ...restField }) => (
-                  <Card key={key} size="small" style={{ marginBottom: 8, background: '#fafafa' }}
+                  <Card key={key} size="small" style={{ marginBottom: 8, background: 'var(--crm-card-inner-bg)' }}
                     extra={<MinusCircleOutlined style={{ color: 'red' }} onClick={() => remove(name)} />}
                   >
                     <Space style={{ display: 'flex' }} align="start" wrap>

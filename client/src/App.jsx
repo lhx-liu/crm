@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Typography, ConfigProvider, Dropdown, Avatar, Spin } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Layout, Menu, Typography, ConfigProvider, Dropdown, Avatar, Spin, Popover, Button } from 'antd';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
@@ -7,9 +7,10 @@ import 'dayjs/locale/zh-cn';
 import {
   ShopOutlined, TeamOutlined, FileTextOutlined,
   BarChartOutlined, LineChartOutlined, UserOutlined, LogoutOutlined, KeyOutlined,
-  BellOutlined
+  BellOutlined, BgColorsOutlined, CheckOutlined
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './AuthContext';
+import { ThemeProvider, useTheme } from './ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Products from './pages/Products';
@@ -56,10 +57,51 @@ function PrivateRoute({ children }) {
   return children;
 }
 
+/** 主题切换面板 */
+function ThemeSwitcher() {
+  const { themeKey, switchTheme, themeList } = useTheme();
+
+  const content = (
+    <div style={{ minWidth: 140 }}>
+      <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--crm-text-muted)', fontWeight: 600 }}>选择主题</div>
+      {themeList.map(t => (
+        <div
+          key={t.key}
+          onClick={() => switchTheme(t.key)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+            background: themeKey === t.key ? 'var(--crm-primary-bg)' : 'transparent',
+          }}
+          onMouseEnter={e => { if (themeKey !== t.key) e.currentTarget.style.background = 'var(--crm-border-light)'; }}
+          onMouseLeave={e => { if (themeKey !== t.key) e.currentTarget.style.background = 'transparent'; }}
+        >
+          <span style={{ fontSize: 14, color: themeKey === t.key ? 'var(--crm-primary)' : 'var(--crm-text-body)', fontWeight: themeKey === t.key ? 600 : 400 }}>
+            {t.name}
+          </span>
+          {themeKey === t.key && <CheckOutlined style={{ color: 'var(--crm-primary)', fontSize: 12 }} />}
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <Popover content={content} trigger="click" placement="bottomRight" overlayStyle={{ zIndex: 1050 }}>
+      <BgColorsOutlined style={{ fontSize: 18, color: 'var(--crm-text-muted)', cursor: 'pointer', transition: 'color 0.2s' }} />
+    </Popover>
+  );
+}
+
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
 
   const selectedKey = location.pathname === '/' ? '/orders' : '/' + location.pathname.split('/')[1];
@@ -119,6 +161,7 @@ function AppLayout() {
         <Header className="crm-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <BellOutlined style={{ fontSize: 18, color: 'var(--crm-text-muted)', cursor: 'pointer' }} />
+            <ThemeSwitcher />
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
               <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Avatar icon={<UserOutlined />} className="crm-avatar" />
@@ -144,44 +187,27 @@ function AppLayout() {
   );
 }
 
-export default function App() {
+/** 动态主题 ConfigProvider 包装器 */
+function ThemedApp() {
+  const { theme } = useTheme();
+
+  const antdTheme = useMemo(() => ({
+    token: {
+      colorPrimary: theme.antdToken.colorPrimary,
+      colorInfo: theme.antdToken.colorInfo,
+      colorSuccess: theme.antdToken.colorSuccess,
+      colorWarning: theme.antdToken.colorWarning,
+      colorError: theme.antdToken.colorError,
+      borderRadius: theme.antdToken.borderRadius,
+      fontFamily: '"Noto Sans SC", "DM Sans", sans-serif',
+      colorBgContainer: theme.antdToken.colorBgContainer,
+      colorBorder: theme.antdToken.colorBorder,
+    },
+    components: theme.antdComponents,
+  }), [theme]);
+
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#0d9488',
-          colorInfo: '#0d9488',
-          colorSuccess: '#10b981',
-          colorWarning: '#f59e0b',
-          colorError: '#ef4444',
-          borderRadius: 10,
-          fontFamily: '"Noto Sans SC", "DM Sans", sans-serif',
-          colorBgContainer: '#ffffff',
-          colorBorder: '#e2e8f0',
-        },
-        components: {
-          Menu: {
-            darkItemBg: 'transparent',
-            darkItemSelectedBg: 'rgba(13, 148, 136, 0.15)',
-            darkItemSelectedColor: '#0d9488',
-            darkItemHoverBg: 'rgba(255, 255, 255, 0.04)',
-          },
-          Layout: {
-            siderBg: '#0f172a',
-          },
-          Button: {
-            primaryShadow: '0 2px 0 rgba(13, 148, 136, 0.1)',
-          },
-          Modal: {
-            borderRadiusLG: 12,
-          },
-          Card: {
-            borderRadiusLG: 12,
-          },
-        },
-      }}
-    >
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
       <BrowserRouter>
         <ErrorBoundary>
           <AuthProvider>
@@ -197,5 +223,13 @@ export default function App() {
         </ErrorBoundary>
       </BrowserRouter>
     </ConfigProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
   );
 }

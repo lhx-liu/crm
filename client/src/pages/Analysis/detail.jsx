@@ -7,15 +7,17 @@ import { ArrowLeftOutlined, ClockCircleOutlined, ShoppingCartOutlined } from '@a
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import api from '../../api';
+import { useTheme } from '../../ThemeContext';
 
 const { Title, Text } = Typography;
 
-const CHART_COLORS = ['#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 const LEVEL_TAG_CLASS = { A: 'crm-tag-level-a', B: 'crm-tag-level-b', C: 'crm-tag-level-c' };
 
 export default function AnalysisDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const CHART_COLORS = theme.chartColors;
   const [customer, setCustomer] = useState(null);
   const [frequency, setFrequency] = useState(null);
   const [products, setProducts] = useState([]);

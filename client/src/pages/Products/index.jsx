@@ -124,7 +124,7 @@ export default function Products() {
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     { 
       title: '型号数量', 
@@ -170,7 +170,7 @@ export default function Products() {
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: '#cbd5e1' }}>-</span>
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', 
