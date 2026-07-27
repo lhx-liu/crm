@@ -114,7 +114,7 @@ export default function AnalysisList() {
       {/* Filter bar */}
       <div className="crm-filter-bar">
         <Input.Search
-          placeholder="搜索公司名称"
+          placeholder="搜索CM名称"
           allowClear
           style={{ width: 260 }}
           value={search}

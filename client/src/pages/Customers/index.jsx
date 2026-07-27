@@ -128,7 +128,7 @@ export default function Customers() {
           : '-';
 
         return {
-          '公司名称': c.company_name || '-',
+          'CM名称': c.company_name || '-',
           '线索编号': c.lead_no || '-',
           '客户等级': c.level || '-',
           '所属国家': c.country || '-',
@@ -164,7 +164,7 @@ export default function Customers() {
 
   const columns = [
     {
-      title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 180, fixed: 'left', ellipsis: { showTitle: false },
+      title: 'CM名称', dataIndex: 'company_name', key: 'company_name', width: 180, fixed: 'left', ellipsis: { showTitle: false },
       render: (v, r) => (
         <span className="crm-link-cell" onClick={() => navigate(`/orders?customer_id=${r.id}&company_name=${v}`)}>{v}</span>
       )
@@ -214,7 +214,7 @@ export default function Customers() {
 
       {/* Filter bar */}
       <div className="crm-filter-bar">
-        <Input.Search placeholder="搜索公司名称" allowClear style={{ width: 200 }} value={search} onSearch={v => setSearch(v)} onChange={e => { if (!e.target.value) setSearch(''); else setSearch(e.target.value); }} />
+        <Input.Search placeholder="搜索CM名称" allowClear style={{ width: 200 }} value={search} onSearch={v => setSearch(v)} onChange={e => { if (!e.target.value) setSearch(''); else setSearch(e.target.value); }} />
         <Select placeholder="客户等级" allowClear style={{ width: 110 }} value={levelFilter || undefined} onChange={v => setLevelFilter(v || '')}>
           <Option value="A">A级</Option><Option value="B">B级</Option><Option value="C">C级</Option>
         </Select>
@@ -247,7 +247,7 @@ export default function Customers() {
         {detailRecord && (
           <>
             <Descriptions title="基本信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="公司名称">{detailRecord.company_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="CM名称">{detailRecord.company_name || '-'}</Descriptions.Item>
               <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[detailRecord.level] || ''}`}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
@@ -290,8 +290,8 @@ export default function Customers() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="company_name" label="客户公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
-            <Input placeholder="请输入公司名称" />
+          <Form.Item name="company_name" label="客户CM名称" rules={[{ required: true, message: '请输入CM名称' }]}>
+            <Input placeholder="请输入CM名称" />
           </Form.Item>
           <Form.Item name="lead_no" label="线索编号" rules={[{ required: true, message: '请输入线索编号' }]}>
             <Input placeholder="请输入线索编号" />

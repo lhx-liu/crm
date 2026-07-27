@@ -224,7 +224,7 @@ export default function Statistics() {
           dataSource={productOrders}
           columns={[
             { title: '订单日期', dataIndex: 'order_date', width: 110 },
-            { title: '公司名称', dataIndex: 'company_name' },
+            { title: 'CM名称', dataIndex: 'company_name' },
             { title: '国家', dataIndex: 'country' },
             { title: '型号', dataIndex: 'product_model' },
             { title: '数量', dataIndex: 'quantity' },

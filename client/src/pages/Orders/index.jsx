@@ -380,7 +380,7 @@ export default function Orders() {
           '到款日期': order.payment_date || '-',
           '发票金额': order.invoice_amount ? `$${Number(order.invoice_amount).toFixed(2)}` : '-',
           'EXW货值': order.exw_value ? `$${Number(order.exw_value).toFixed(2)}` : '-',
-          '公司名称': order.company_name || '-',
+          'CM名称': order.company_name || '-',
           '客户等级': order.level || '-',
           '所属国家': order.country || '-',
           '所属大洲': order.continent || '-',
@@ -439,7 +439,7 @@ export default function Orders() {
       render: v => v ? <Tag className="crm-tag" color={v === '新客户' ? 'var(--crm-success)' : 'var(--crm-info)'}>{v}</Tag> : '-'
     },
     {
-      title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
+      title: 'CM名称', dataIndex: 'company_name', key: 'company_name', width: 200, fixed: 'left', ellipsis: { showTitle: false },
       render: (v, r) => (
         <Tooltip placement="topLeft" title={v}>
           <span className="crm-link-cell" onClick={() => handleViewCustomerOrders(r.customer_id, v)}>{v}</span>
@@ -493,7 +493,7 @@ export default function Orders() {
       {/* Filter bar — 文本输入不再 onChange 直接触发查询，仅 onSearch 或防抖触发 */}
       <div className="crm-filter-bar">
         <Input.Search
-          placeholder="公司名称" allowClear style={{ width: 160 }}
+          placeholder="CM名称" allowClear style={{ width: 160 }}
           value={filterCompany}
           onSearch={v => { setFilterCustomerId(''); setFilterCompany(v); }}
           onChange={e => {
@@ -616,7 +616,7 @@ export default function Orders() {
           <Space style={{ display: 'flex' }} wrap>
             <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]} style={{ width: 280 }}>
               <Select
-                showSearch placeholder="输入公司名称搜索客户"
+                showSearch placeholder="输入CM名称搜索客户"
                 virtual
                 filterOption={false}
                 onSearch={v => setCustomerSearch(v)}
@@ -674,7 +674,7 @@ export default function Orders() {
         {detailRecord && (
           <>
             <Descriptions title="客户信息" bordered column={2} size="small" style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="公司名称">{detailRecord.company_name}</Descriptions.Item>
+              <Descriptions.Item label="CM名称">{detailRecord.company_name}</Descriptions.Item>
               <Descriptions.Item label="线索编号">{detailRecord.lead_no || '-'}</Descriptions.Item>
               <Descriptions.Item label="客户等级">{detailRecord.level ? <Tag className={`crm-tag ${LEVEL_TAG_CLASS[detailRecord.level] || ''}`}>{detailRecord.level}</Tag> : '-'}</Descriptions.Item>
               <Descriptions.Item label="所属国家">{detailRecord.country || '-'}</Descriptions.Item>
@@ -734,8 +734,8 @@ export default function Orders() {
       {/* 快捷新增客户 */}
       <Modal title="快速新增客户" open={newCustomerModal} onOk={handleAddCustomer} onCancel={() => setNewCustomerModal(false)} okText="新增" cancelText="取消" width={700} destroyOnClose>
         <Form form={newCustomerForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="company_name" label="客户公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
-            <Input placeholder="请输入公司名称" />
+          <Form.Item name="company_name" label="客户CM名称" rules={[{ required: true, message: '请输入CM名称' }]}>
+            <Input placeholder="请输入CM名称" />
           </Form.Item>
           <Form.Item name="lead_no" label="线索编号" rules={[{ required: true, message: '请输入线索编号' }]}>
             <Input placeholder="请输入线索编号" />
