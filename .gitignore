@@ -23,3 +23,5 @@
 *.db
 *.db-wal
 *.db-shm
+client/crmly_top_integrated.pem
+client/crmly_top.key

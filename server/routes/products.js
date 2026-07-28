@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../db/database');
 
+// I1: 生产环境错误信息脱敏
+const safeMsg = (err) => process.env.NODE_ENV === 'production' ? '服务器内部错误' : err.message;
+
 // ==================== 产品大类 API ====================
 
 // 获取所有大类
@@ -19,7 +22,8 @@ router.get('/', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Products error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -28,13 +32,25 @@ router.get('/categories-with-models', async (req, res) => {
   try {
     const db = getPool();
     const [categories] = await db.execute('SELECT * FROM product_categories ORDER BY created_at DESC');
-    for (const cat of categories) {
-      const [models] = await db.execute('SELECT * FROM product_models WHERE category_id = ? ORDER BY created_at DESC', [cat.id]);
-      cat.models = models;
+    // 批量查询型号（消除 N+1）
+    if (categories.length > 0) {
+      const catIds = categories.map(c => c.id);
+      const [allModels] = await db.execute(
+        `SELECT * FROM product_models WHERE category_id IN (${catIds.map(() => '?').join(',')}) ORDER BY created_at DESC`,
+        catIds
+      );
+      const modelMap = {};
+      for (const m of allModels) {
+        (modelMap[m.category_id] ??= []).push(m);
+      }
+      for (const cat of categories) {
+        cat.models = modelMap[cat.id] || [];
+      }
     }
     res.json({ success: true, data: categories });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Categories with models error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -44,11 +60,15 @@ router.post('/', async (req, res) => {
     const db = getPool();
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ success: false, message: '大类名称为必填项' });
-    const [result] = await db.execute('INSERT INTO product_categories (name, description) VALUES (?, ?)', [name, description || null]);
+    // 校验名称唯一性
+    const [existing] = await db.execute('SELECT id FROM product_categories WHERE name = ?', [name.trim()]);
+    if (existing.length > 0) return res.status(400).json({ success: false, message: '该大类名称已存在' });
+    const [result] = await db.execute('INSERT INTO product_categories (name, description) VALUES (?, ?)', [name.trim(), description || null]);
     const [rows] = await db.execute('SELECT * FROM product_categories WHERE id = ?', [result.insertId]);
     res.json({ success: true, data: rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Create category error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -58,10 +78,14 @@ router.put('/categories/:id', async (req, res) => {
     const db = getPool();
     const { id } = req.params;
     const { name, description } = req.body;
-    await db.execute('UPDATE product_categories SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [name, description || null, id]);
+    // 校验名称唯一性（排除自身）
+    const [existing] = await db.execute('SELECT id FROM product_categories WHERE name = ? AND id != ?', [name.trim(), id]);
+    if (existing.length > 0) return res.status(400).json({ success: false, message: '该大类名称已存在' });
+    await db.execute('UPDATE product_categories SET name=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [name.trim(), description || null, id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Update category error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -77,7 +101,8 @@ router.delete('/categories/:id', async (req, res) => {
     await db.execute('DELETE FROM product_categories WHERE id=?', [id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Delete category error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -107,7 +132,8 @@ router.get('/models', async (req, res) => {
     const [rows] = await db.execute(sql, params);
     res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Models error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -126,7 +152,8 @@ router.post('/models', async (req, res) => {
     `, [result.insertId]);
     res.json({ success: true, data: rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Create model error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -139,7 +166,8 @@ router.put('/models/:id', async (req, res) => {
     await db.execute('UPDATE product_models SET category_id=?, model=?, price=?, description=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [category_id, model, price || 0, description || null, id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Update model error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 
@@ -155,7 +183,8 @@ router.delete('/models/:id', async (req, res) => {
     await db.execute('DELETE FROM product_models WHERE id=?', [id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Delete model error:', err);
+    res.status(500).json({ success: false, message: safeMsg(err) });
   }
 });
 

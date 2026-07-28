@@ -3,7 +3,7 @@ import { Table, Button, Input, Space, Modal, Form, InputNumber, Popconfirm, mess
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
 import api from '../../api';
 
-const { Title } = Typography;
+const { Option } = Select;
 
 export default function Products() {
   const [categories, setCategories] = useState([]);
@@ -11,12 +11,10 @@ export default function Products() {
   const [search, setSearch] = useState('');
   const [expandedRowKeys, setExpandedRowKeys] = useState([]);
   
-  // 大类相关
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editCategory, setEditCategory] = useState(null);
   const [categoryForm] = Form.useForm();
   
-  // 型号相关
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [editModel, setEditModel] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -36,18 +34,22 @@ export default function Products() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // 大类操作
   const openAddCategory = () => { setEditCategory(null); categoryForm.resetFields(); setCategoryModalOpen(true); };
   const openEditCategory = (record) => { setEditCategory(record); categoryForm.setFieldsValue(record); setCategoryModalOpen(true); };
   
   const handleSaveCategory = async () => {
     try {
       const values = await categoryForm.validateFields();
+      const duplicate = categories.find(c => c.name === values.name.trim());
+      if (duplicate && (!editCategory || duplicate.id !== editCategory.id)) {
+        message.warning('该大类名称已存在，请勿重复添加');
+        return;
+      }
       if (editCategory) {
         await api.put(`/products/categories/${editCategory.id}`, values);
         message.success('更新成功');
       } else {
-        await api.post('/products/categories', values);
+        await api.post('/products', values);
         message.success('新增成功');
       }
       setCategoryModalOpen(false);
@@ -68,7 +70,6 @@ export default function Products() {
     }
   };
 
-  // 型号操作
   const openAddModel = (categoryId) => {
     setSelectedCategoryId(categoryId);
     setEditModel(null);
@@ -117,30 +118,32 @@ export default function Products() {
       title: '大类名称', 
       dataIndex: 'name', 
       key: 'name',
-      render: (v) => <strong style={{ fontSize: 15 }}>{v}</strong>
+      render: (v) => <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--crm-text-secondary)' }}>{v}</span>
     },
     { 
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v || '-'
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     { 
       title: '型号数量', 
       key: 'model_count',
       width: 100,
-      render: (_, r) => <Tag color="blue">{r.models?.length || 0}</Tag>
+      align: 'center',
+      render: (_, r) => <Tag className="crm-tag" style={{ background: 'var(--crm-primary-light)', color: 'var(--crm-primary)', border: 'none' }}>{r.models?.length || 0}</Tag>
     },
     {
       title: '操作', 
       key: 'action', 
-      width: 260,
+      width: 220,
+      align: 'center',
       render: (_, record) => (
-        <Space>
-          <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => openAddModel(record.id)}>新增型号</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEditCategory(record)}>编辑大类</Button>
+        <Space size={4}>
+          <Button size="small" type="text" icon={<PlusOutlined />} className="crm-action-btn" onClick={() => openAddModel(record.id)}>新增型号</Button>
+          <Button size="small" type="text" icon={<EditOutlined />} className="crm-action-btn" onClick={() => openEditCategory(record)}>编辑</Button>
           <Popconfirm title="确认删除该大类？" onConfirm={() => handleDeleteCategory(record.id)} okText="确认" cancelText="取消">
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} className="crm-action-btn">删除</Button>
           </Popconfirm>
         </Space>
       )
@@ -153,30 +156,32 @@ export default function Products() {
       title: '型号名称', 
       dataIndex: 'model', 
       key: 'model',
-      render: v => <span style={{ fontWeight: 500 }}>{v}</span>
+      render: v => <span style={{ fontWeight: 500, color: 'var(--crm-text-body)' }}>{v}</span>
     },
     { 
       title: '单价 ($)', 
       dataIndex: 'price', 
       key: 'price', 
       width: 120,
-      render: v => <span style={{ color: '#1677ff', fontWeight: 500 }}>${Number(v || 0).toFixed(2)}</span>
+      align: 'right',
+      render: v => <span className="crm-money">${Number(v || 0).toFixed(2)}</span>
     },
     { 
       title: '描述', 
       dataIndex: 'description', 
       key: 'description',
-      render: v => v || '-'
+      render: v => v ? <span style={{ color: 'var(--crm-text-muted)' }}>{v}</span> : <span style={{ color: 'var(--crm-empty-color)' }}>-</span>
     },
     {
       title: '操作', 
       key: 'action', 
-      width: 160,
+      width: 120,
+      align: 'center',
       render: (_, record) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEditModel(record)}>编辑</Button>
+        <Space size={4}>
+          <Button size="small" type="text" icon={<EditOutlined />} className="crm-action-btn" onClick={() => openEditModel(record)}>编辑</Button>
           <Popconfirm title="确认删除该型号？" onConfirm={() => handleDeleteModel(record.id)} okText="确认" cancelText="取消">
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} className="crm-action-btn">删除</Button>
           </Popconfirm>
         </Space>
       )
@@ -198,7 +203,6 @@ export default function Products() {
           dataSource={record.models}
           pagination={false}
           size="small"
-          bordered
           style={{ margin: '8px 0' }}
         />
       );
@@ -208,37 +212,44 @@ export default function Products() {
         return <span style={{ marginLeft: 22 }} />;
       }
       return expanded 
-        ? <DownOutlined onClick={e => onExpand(record, e)} style={{ cursor: 'pointer', marginRight: 8 }} />
-        : <RightOutlined onClick={e => onExpand(record, e)} style={{ cursor: 'pointer', marginRight: 8 }} />;
+        ? <DownOutlined onClick={e => onExpand(record, e)} className="crm-expand-icon" style={{ cursor: 'pointer', marginRight: 8 }} />
+        : <RightOutlined onClick={e => onExpand(record, e)} className="crm-expand-icon" style={{ cursor: 'pointer', marginRight: 8 }} />;
     }
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>产品管理</Title>
+    <div className="crm-page">
+      {/* Header */}
+      <div className="crm-page-header">
+        <h3 className="crm-page-title">产品管理</h3>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAddCategory}>新增大类</Button>
       </div>
-      <div style={{ marginBottom: 16 }}>
+
+      {/* Filter bar */}
+      <div className="crm-filter-bar">
         <Input.Search
           placeholder="搜索大类名称"
           allowClear
-          style={{ width: 300 }}
+          style={{ width: 260 }}
           prefix={<SearchOutlined />}
           onSearch={v => setSearch(v)}
           onChange={e => !e.target.value && setSearch('')}
         />
       </div>
-      <Table
-        rowKey="id"
-        columns={categoryColumns}
-        dataSource={categories}
-        loading={loading}
-        pagination={{ pageSize: 20, showTotal: t => `共 ${t} 个大类` }}
-        bordered
-        size="middle"
-        expandable={expandableConfig}
-      />
+
+      {/* Table */}
+      <div className="crm-table-container">
+        <Table
+          rowKey="id"
+          columns={categoryColumns}
+          dataSource={categories}
+          loading={loading}
+          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 个大类`, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
+          size="middle"
+          scroll={{ y: 'calc(100vh - 300px)' }}
+          expandable={expandableConfig}
+        />
+      </div>
 
       {/* 大类 Modal */}
       <Modal

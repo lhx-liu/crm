@@ -40,19 +40,19 @@ export default function ChangePassword() {
 
   return (
     <div style={{ maxWidth: 480, margin: '40px auto' }}>
-      <Card style={{ borderRadius: 8 }}>
+      <Card style={{ borderRadius: 'var(--crm-radius-lg)', boxShadow: 'var(--crm-shadow-md)' }}>
         <div style={{ marginBottom: 24 }}>
           {!mustChangePassword && (
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate(-1)}
-              style={{ marginBottom: 16 }}
+              style={{ marginBottom: 16, color: 'var(--crm-primary)' }}
             >
               返回
             </Button>
           )}
-          <Title level={4} style={{ margin: 0 }}>
+          <Title level={4} style={{ margin: 0, color: 'var(--crm-text-primary)' }}>
             {mustChangePassword ? '首次登录 - 请修改默认密码' : '修改密码'}
           </Title>
           <Text type="secondary">当前用户：{user?.username}</Text>

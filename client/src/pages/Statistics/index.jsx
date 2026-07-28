@@ -3,12 +3,15 @@ import { Row, Col, Card, Select, DatePicker, Button, Table, Modal, Typography, S
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import api from '../../api';
+import { useTheme } from '../../ThemeContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 export default function Statistics() {
+  const { theme } = useTheme();
+  const CHART_COLORS = theme.chartColors;
   const [globalRange, setGlobalRange] = useState([dayjs().subtract(1, 'year'), dayjs()]);
   const [continentType, setContinentType] = useState('count');
   const [trendGranularity, setTrendGranularity] = useState('month');
@@ -79,6 +82,7 @@ export default function Statistics() {
   const continentOption = {
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', right: 10 },
+    color: CHART_COLORS,
     series: [{
       type: 'pie', radius: ['40%', '70%'],
       data: continentData.filter(d => d.continent).map(d => ({
@@ -90,17 +94,18 @@ export default function Statistics() {
   // 趋势图配置
   const trendOption = {
     tooltip: { trigger: 'axis' },
+    color: CHART_COLORS,
     xAxis: { type: 'category', data: trendData.map(d => d.period) },
     yAxis: { type: 'value', axisLabel: { formatter: v => `$${v}` } },
-    series: [{ name: '到款金额', type: 'bar', data: trendData.map(d => Number(d.amount || 0)), itemStyle: { color: '#1677ff' } }]
+    series: [{ name: '到款金额', type: 'bar', data: trendData.map(d => Number(d.amount || 0)), itemStyle: { color: CHART_COLORS[0], borderRadius: [4, 4, 0, 0] } }]
   };
 
   // 对比图配置
-  const colors = ['#1677ff', '#ff4d4f', '#52c41a', '#faad14', '#722ed1'];
   const allPeriods = [...new Set(Object.values(compareData).flat().map(d => d.sub_period))].sort();
   const compareOption = {
     tooltip: { trigger: 'axis' },
     legend: { data: compareSelected },
+    color: CHART_COLORS,
     xAxis: { type: 'category', data: allPeriods },
     yAxis: { type: 'value', axisLabel: { formatter: v => `$${v}` } },
     series: compareSelected.map((p, i) => ({
@@ -109,7 +114,7 @@ export default function Statistics() {
         const found = (compareData[p] || []).find(d => d.sub_period === period);
         return Number(found?.amount || 0);
       }),
-      itemStyle: { color: colors[i % colors.length] }
+      itemStyle: { color: CHART_COLORS[i % CHART_COLORS.length] }
     }))
   };
 
@@ -119,20 +124,20 @@ export default function Statistics() {
 
   const productColumns = [
     { title: '产品大类', dataIndex: 'category_name', key: 'category_name',
-      render: (v, r) => <Button type="link" style={{ padding: 0 }} onClick={() => handleProductClick(r)}>{v}</Button>
+      render: (v, r) => <Button type="link" style={{ padding: 0, color: 'var(--crm-primary)' }} onClick={() => handleProductClick(r)}>{v}</Button>
     },
     { title: '销售数量', dataIndex: 'total_quantity', key: 'total_quantity', sorter: (a, b) => a.total_quantity - b.total_quantity },
     { title: '销售总金额', dataIndex: 'total_amount', key: 'total_amount', sorter: (a, b) => a.total_amount - b.total_amount,
-      render: v => `$${Number(v || 0).toFixed(2)}`
+      render: v => <span className="crm-money">${Number(v || 0).toFixed(2)}</span>
     },
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>订单图表统计</Title>
+    <div style={{ padding: '20px 0' }} className="crm-page-enter">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h3 className="crm-page-title">订单图表统计</h3>
         <Space>
-          <Text>全局时间范围：</Text>
+          <Text style={{ color: 'var(--crm-text-muted)' }}>全局时间范围：</Text>
           <RangePicker value={globalRange} onChange={v => setGlobalRange(v)} />
         </Space>
       </div>
@@ -140,7 +145,7 @@ export default function Statistics() {
       <Row gutter={[16, 16]}>
         {/* 大洲分布 */}
         <Col xs={24} lg={12}>
-          <Card title="大洲订单分布" extra={
+          <Card title="大洲订单分布" className="crm-chart-card" extra={
             <Radio.Group size="small" value={continentType} onChange={e => setContinentType(e.target.value)}>
               <Radio.Button value="count">订单数量</Radio.Button>
               <Radio.Button value="amount">到款金额</Radio.Button>
@@ -148,14 +153,14 @@ export default function Statistics() {
           }>
             {continentData.filter(d => d.continent).length > 0
               ? <ReactECharts option={continentOption} style={{ height: 300 }} />
-              : <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无数据</div>
+              : <div className="crm-empty-state">暂无数据</div>
             }
           </Card>
         </Col>
 
         {/* 到款金额趋势 */}
         <Col xs={24} lg={12}>
-          <Card title="到款金额趋势" extra={
+          <Card title="到款金额趋势" className="crm-chart-card" extra={
             <Radio.Group size="small" value={trendGranularity} onChange={e => setTrendGranularity(e.target.value)}>
               <Radio.Button value="month">按月</Radio.Button>
               <Radio.Button value="quarter">按季度</Radio.Button>
@@ -164,14 +169,14 @@ export default function Statistics() {
           }>
             {trendData.length > 0
               ? <ReactECharts option={trendOption} style={{ height: 300 }} />
-              : <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无数据</div>
+              : <div className="crm-empty-state">暂无数据</div>
             }
           </Card>
         </Col>
 
         {/* 到款金额对比 */}
         <Col span={24}>
-          <Card title="到款金额对比趋势" extra={
+          <Card title="到款金额对比趋势" className="crm-chart-card" extra={
             <Space>
               <Radio.Group size="small" value={compareType} onChange={e => { setCompareType(e.target.value); setCompareSelected([]); setCompareData({}); }}>
                 <Radio.Button value="year">按年对比</Radio.Button>
@@ -187,14 +192,14 @@ export default function Statistics() {
           }>
             {compareSelected.length > 0 && Object.keys(compareData).length > 0
               ? <ReactECharts option={compareOption} style={{ height: 320 }} />
-              : <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>请选择{compareType === 'year' ? '年份' : '月份'}进行对比</div>
+              : <div className="crm-empty-state">请选择{compareType === 'year' ? '年份' : '月份'}进行对比</div>
             }
           </Card>
         </Col>
 
         {/* 产品销售排行 */}
         <Col span={24}>
-          <Card title="产品销售排行" extra={
+          <Card title="产品销售排行" className="crm-chart-card" extra={
             <Radio.Group size="small" value={productSortBy} onChange={e => setProductSortBy(e.target.value)}>
               <Radio.Button value="amount">按金额</Radio.Button>
               <Radio.Button value="quantity">按数量</Radio.Button>
@@ -219,12 +224,12 @@ export default function Statistics() {
           dataSource={productOrders}
           columns={[
             { title: '订单日期', dataIndex: 'order_date', width: 110 },
-            { title: '公司名称', dataIndex: 'company_name' },
+            { title: 'CM名称', dataIndex: 'company_name' },
             { title: '国家', dataIndex: 'country' },
             { title: '型号', dataIndex: 'product_model' },
             { title: '数量', dataIndex: 'quantity' },
-            { title: '单价', dataIndex: 'unit_price', render: v => `$${Number(v || 0).toFixed(2)}` },
-            { title: '到款金额', dataIndex: 'payment_amount', render: v => v ? `$${Number(v).toFixed(2)}` : '-' },
+            { title: '单价', dataIndex: 'unit_price', render: v => <span className="crm-money">${Number(v || 0).toFixed(2)}</span> },
+            { title: '到款金额', dataIndex: 'payment_amount', render: v => v ? <span className="crm-money">${Number(v).toFixed(2)}</span> : '-' },
           ]}
           pagination={{ pageSize: 10 }}
         />
