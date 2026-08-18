@@ -175,6 +175,7 @@ export default function Login() {
         justifyContent: 'center',
         alignItems: 'center',
         padding: 48,
+        position: 'relative',
         transition: 'background 0.3s ease',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
@@ -247,6 +248,30 @@ export default function Login() {
               </Button>
             </Form.Item>
           </Form>
+        </div>
+
+        {/* 底部备案信息 */}
+        <div style={{
+          position: 'absolute',
+          bottom: 18,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontSize: 12,
+          color: 'var(--crm-text-placeholder)',
+          fontFamily: 'var(--crm-font-body)',
+        }}>
+          © {new Date().getFullYear()} CRM 客户管理系统 ·{' '}
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--crm-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'inherit'; }}
+          >
+            鲁ICP备2026044327号
+          </a>
         </div>
       </div>
     </div>

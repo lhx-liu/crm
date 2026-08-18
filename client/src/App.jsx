@@ -155,7 +155,20 @@ function AppLayout() {
           onClick={({ key }) => navigate(key)}
           style={{ marginTop: 8, borderRight: 'none' }}
         />
-        {!collapsed && <div className="crm-sider-version">v2.0</div>}
+        {!collapsed && (
+          <div className="crm-sider-version">
+            <span>v2.0</span>
+            <a
+              className="crm-sider-beian"
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="工信部备案查询"
+            >
+              鲁ICP备2026044327号
+            </a>
+          </div>
+        )}
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 220, transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
         <Header className="crm-header">

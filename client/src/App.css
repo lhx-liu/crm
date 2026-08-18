@@ -129,12 +129,16 @@
   color: var(--crm-primary) !important;
 }
 
-/* 侧栏底部版本号 */
+/* 侧栏底部版本号 + 备案信息 */
 .crm-sider-version {
   position: absolute;
   bottom: 16px;
   left: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   text-align: center;
   color: rgba(255, 255, 255, 0.25);
   font-size: 12px;
@@ -148,7 +152,21 @@
   width: 40px;
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin: 0 auto 8px;
+  margin: 0 auto 4px;
+}
+
+/* 侧栏备案号 */
+.crm-sider-beian {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  font-family: var(--crm-font-body);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.crm-sider-beian:hover {
+  color: var(--crm-primary);
 }
 
 /* 折叠按钮 */

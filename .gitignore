@@ -25,3 +25,5 @@
 *.db-shm
 client/crmly_top_integrated.pem
 client/crmly_top.key
+client/crmly.top_bundle.pem
+client/crmly.top.key
