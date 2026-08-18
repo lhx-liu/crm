@@ -10,7 +10,6 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import * as XLSX from 'xlsx';
 import api from '../../api';
 import useDebounce from '../../hooks/useDebounce';
 
@@ -341,6 +340,8 @@ export default function Orders() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
+      // 动态加载 xlsx，避免打入首包
+      const XLSX = await import('xlsx');
       // 导出时获取全量数据（I7: 使用 export=true 标记，后端允许更大 pageSize）
       const params = {
         company_name: debouncedCompany,

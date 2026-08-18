@@ -6,7 +6,6 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, LineChartOutlined, MinusCircleOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import * as XLSX from 'xlsx';
 import api from '../../api';
 import useDebounce from '../../hooks/useDebounce';
 
@@ -121,6 +120,8 @@ export default function Customers() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
+      // 动态加载 xlsx，避免打入首包
+      const XLSX = await import('xlsx');
       const res = await api.get('/customers', { params: { search: debouncedSearch, level: levelFilter, country: debouncedCountry, export: 'true', pageSize: 100000 } });
       const exportData = (res.data || []).map(c => {
         const contactInfo = c.contacts?.length
